@@ -19,7 +19,7 @@ function istext_or_word(name,noword_)
   end
   local noword = noword_ or false
   if(noword == false)then
-   return string.sub(name,1,5) == "text_" or name == "sqrt9"
+   return string.sub(name,1,5) == "text_" or letterreplacements[name] ~= nil
   else
    return string.sub(name,1,5) == "text_"
   end
@@ -46,22 +46,24 @@ end
 function matches(word, unit, justname_)
   local justname = justname_ or false
   local name = ""
-  local id = -15
+  local id = 0 --Rest in peace id = -15. You will be missed.
   if not justname then
     if unit ~= "icon" then
       name = unit.name
       id = unit.id
     else
       name = "icon"
-      id = nil
+      id = 0
     end
   else
     name = unit
   end
 
-
-
   if word == name then
+    return true
+  end
+
+  if unit == "any" then
     return true
   end
 
@@ -85,15 +87,19 @@ function matches(word, unit, justname_)
     return true
   end
 
-  if word == "all" and not istext_or_word(name, 1) and not justname then
+  if word == "all" and not istext_or_word(name, 1) and not justname and name ~= "particle" then
     return true
   end
 
-  if word == "file" and id ~= -15 and unit.file ~= nil then
+  if word == "file" and id ~= 0 and unit.file ~= nil then
     return true
   end
 
   if word == "choose" and chooserule ~= nil and chooserule ~= "" and chooserule[2] == name then
+    return true
+  end
+
+  if word == "particle" and id < 0 then
     return true
   end
 
@@ -185,13 +191,23 @@ function unitreference(unit, ref)
 end
 
 function float(ob1,ob2)
-  local float1 = ruleexists(ob1, Objects[ob1].name ,"is","float")
-  local float2 = ruleexists(ob2, Objects[ob2].name ,"is","float")
-  return float1 == float2
+  local floorheight1 = 0
+  local floorheight2 = 0
+  local ceilingheight1 = Objects[ob1].size
+  local ceilingheight2 = Objects[ob2].size
+  if ruleexists(ob1, Objects[ob1].name ,"is","float") then
+    floorheight1 = Objects[ob1].size
+    ceilingheight1 = ceilingheight1 + Objects[ob1].size
+  end
+  if ruleexists(ob2, Objects[ob2].name ,"is","float") then
+    floorheight2 = Objects[ob2].size
+    ceilingheight2 = ceilingheight2 + Objects[ob2].size
+  end
+  return floorheight1 < ceilingheight2 and ceilingheight1 > floorheight2
 end
 
 function dochoose()
-
+  turnkey = "choose"
   local choosers = {}
   local vischoosers = {}
 
@@ -203,6 +219,12 @@ function dochoose()
   end
 
   if #choosers > 0 then
+    if chooserule ~= nil then
+      oldchooserule = {}
+      for i, j in ipairs(chooserule) do
+        table.insert(oldchooserule,j)
+      end
+    end
     table.insert(vischoosers, "nah")
     vischoosers.escapebutton = #vischoosers
 
@@ -211,4 +233,8 @@ function dochoose()
 
   end
 
+end
+
+function is_particle(id)
+  return id < 0
 end

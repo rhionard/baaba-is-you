@@ -19,6 +19,7 @@ function undo()
 
     for a, b in ipairs(Objects) do
       b.oldactive = b._active
+      dotiling(b)
       updatesprite(b)
     end
 
@@ -30,7 +31,7 @@ function undo()
       music:play()
     end
 
-    love.audio.play(love.audio.newSource("sound/undo.wav","static"))
+    playsfx("undo")
   end
   undoing = false
 end
@@ -56,14 +57,12 @@ undo_funcs.update = function(data)
 
   unit.dir = data.dir
 
-  unit.from_x = unit.x
-  unit.from_y = unit.y
+  local bold_x, bold_y = unit.tilex * tilesize, unit.tiley * tilesize
 
   unit.tilex = old_x
   unit.tiley = old_y
 
-  unit.to_x = old_x * tilesize
-  unit.to_y = old_y * tilesize
+  table.insert(unit.anim_stack, {{bold_x, bold_y}, {unit.tilex * tilesize, unit.tiley * tilesize}})
   unit.moving = true
 
   updatesprite(unit)
@@ -105,7 +104,20 @@ end
 
 undo_funcs.create = function(data)
   local h = data.the_id
-  removeunit(Objects[undo_ob(h)])
+  if Objects[undo_ob(h)] ~= nil then
+    removeunit(Objects[undo_ob(h)])
+  end
+end
+
+undo_funcs.setchange = function(data)
+  local h = data.undo_id
+  local ob = Objects[undo_ob(h)]
+  ob.orig_x = data.orig_x
+  ob.orig_y = data.orig_y
+end
+
+undo_funcs.choose = function(data)
+  chooserule = data.c
 end
 
 

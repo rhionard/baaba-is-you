@@ -2,12 +2,7 @@ function getspritevalues(n)
   if string.sub(n,1,10) == "text_text_" then
     return {sprite = n,name = n,color = getspritevalues(string.sub(n,6,string.len(n))).color,rotate =  nil,args = nil,type = 0}
   end
-  for i,j in ipairs(objectValues)do
-   if(j.name == n)then
-     return j
-   end
-  end
-  return {sprite = n,name = n, color = {1,1}, rotate = nil, args = nil, nope = true}
+  return betterObjectValues[n] or {sprite = n,name = n, color = {1,1}, rotate = nil, args = nil, nope = true}
 end
 objectValues = {
   {
@@ -90,7 +85,7 @@ objectValues = {
   {
     name = "text_weak",
     sprite = "text_weak",
-    color = {5,2},
+    color = {5,3},
     type = 2
   },
   {
@@ -488,7 +483,8 @@ objectValues = {
   {
     name = "grubble",
     sprite = "grubble",
-    color = {4,5}
+    color = {4,5},
+    rotate = 5
   },
   {
     name = "text_rubble",
@@ -1087,6 +1083,7 @@ objectValues = {
     name = "bat",
     sprite = "bat",
     color = {7,1},
+    rotate = 4
   },
   {
     name = "text_up",
@@ -1749,7 +1746,7 @@ objectValues = {
     name = "horse",
     sprite = "horse",
     color = {2,4},
-    rotate = 4
+    rotate = 6
   },
   {
     name = "text_battery",
@@ -2119,8 +2116,8 @@ objectValues = {
     type = 0
   },
   {
-    name = "text_xnopyt",
-    sprite = "text_xnopyt",
+    name = "text_poof",
+    sprite = "text_poof",
     color = {1,2},
     type = 2
   },
@@ -2239,7 +2236,25 @@ objectValues = {
     color = {1,2},
     type = 0
   },
+  {
+    name = "text_particle",
+    sprite = "text_particle",
+    color = {3,1},
+    type = 0
+  },
+  {
+    name = "particle",
+    sprite = "particle",
+    color = {3,1}
+  },
+  {
+    name = "text_facing",
+    sprite = "text_facing",
+    color = {1,2},
+    type = 7
+  },
 }
+
 local bonusletters = {"c","d","e","f","g","h","j","k","l","m","n","p","r","t","v","w","x","z","upsilon","0","1","2","3","4","5","6","7","8","9","ch","dollars"}
 for i, j in ipairs(bonusletters) do
   table.insert(objectValues, {
@@ -2249,10 +2264,19 @@ for i, j in ipairs(bonusletters) do
     type = 5
   })
 end
+
+betterObjectValues = {}
+for i,j in ipairs(objectValues)do
+ betterObjectValues[j.name] = j
+end
 alias = {}
 alias["wupsilong"] = "wug"
 alias["sqrt9dollars"] = "3dollars"
 alias["water"] = "whater"
 alias["walter"] = "whater"
-alias["hrrkrkrkrwpfrbrbrbrlablblblblblblblwhitooap"] = "xnopyt"
-alias["aaaaaaajjjjjjjjj"] = "xnopyt"
+alias["hrrkrkrkrwpfrbrbrbrlablblblblblblblwhitooap"] = "poof"
+alias["aaaaaaajjjjjjjjj"] = "poof"
+
+letterreplacements = {}
+letterreplacements["sqrt9"] = "3"
+letterreplacements["question"] = "?"

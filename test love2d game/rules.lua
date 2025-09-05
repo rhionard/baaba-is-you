@@ -71,7 +71,7 @@ function getplayers(select_)
  local objs1 = {}
  for i,ob in ipairs(rules) do
    local property = ob[3]
-    if property == "you" or property == "you2" or (property == "select" and not deselect) and (ob[2] == "is")then
+    if matches(property, "you", true) or matches(property, "you2", true) or (matches(property, "select", true) and not deselect) and (ob[2] == "is")then
       for j,job in ipairs(Objects) do
 
        if matches(ob[1], job) then
@@ -93,15 +93,15 @@ end
 function on(thisobj)
   local finalobjs2 = {}
   local xpos1 = thisobj.tilex
-    local ypos1 = thisobj.tiley
-    for a,b in ipairs(Objects) do
-  if(xpos1 == b.tilex) and (ypos1 == b.tiley) then
-    if not (b==thisobj)then
-   table.insert(finalobjs2,b)
+  local ypos1 = thisobj.tiley
+  for a,b in ipairs(Objects) do
+    if(xpos1 == b.tilex) and (ypos1 == b.tiley) then
+      if not (b==thisobj) and (b.name ~= "particle") then
+        table.insert(finalobjs2,b)
+      end
     end
   end
-end
-return finalobjs2
+  return finalobjs2
 end
 function ison(thisobj,otherobj)
   local finalobjs2 = {}
@@ -114,7 +114,16 @@ end
 
 function isruleblocked(id,verb,prop)
 
-  local unit = Objects[id]
+  local unit = {}
+  if id == "icon" then
+    unit = id
+  elseif type(id) == "number" then
+    if id > 0 then
+      unit = Objects[id]
+    else
+      unit = particles[-id]
+    end
+  end
   local norule = false
   for i,ob in ipairs(rules) do
     if ob[4] ~= nil then
@@ -159,8 +168,12 @@ function ruleexists(id, noun,verb,property, feeling,power)
   end
 
   local unit = {}
-  if id ~= "icon" then
-    unit = Objects[id]
+  if id ~= "icon" and type(id) == "number" then
+    if id > 0 then
+      unit = Objects[id]
+    else
+      unit = particles[-id]
+    end
   else
     unit = "icon"
   end
@@ -187,13 +200,24 @@ function rulecount(id, verb,property)
   if isruleblocked(id, verb, property) then
     return false
   end
+  local unit = {}
+  if id ~= "icon" then
+    if id > 0 then
+      unit = Objects[id]
+    else
+      unit = particles[-id]
+    end
+  else
+    unit = "icon"
+  end
+
 
   count = 0
   for i,ob in ipairs(rules) do
 
      if matches(ob[3], property, true) and (ob[2] == verb)then
 
-        if matches(ob[1], Objects[id]) then
+        if matches(ob[1], unit) then
 
            if testcond(ob[4], id) then
             count = count + 1
@@ -273,8 +297,8 @@ function letters_to_text(letters, start)
       local obj = Objects[v]
       local gsv = getspritevalues(obj.name)
       local name = realname(obj.name)
-      if obj.name == "sqrt9" then
-        name = "3"
+      if letterreplacements[obj.name] ~= nil then
+        name = letterreplacements[obj.name]
       end
 
       if gsv.type == 5 then
@@ -492,8 +516,8 @@ function Parser:ParseRules()
 
       local next = Objects[j[ind + 1]]
 
-      if obj.name == "sqrt9" then
-        name = "3"
+      if letterreplacements[obj.name] ~= nil then
+        name = letterreplacements[obj.name]
       end
 
       -- handle letters
@@ -987,6 +1011,8 @@ function Parser:Debug()
     DBG = DBG .. "\n"
 
   end
+
+  DBG = DBG .. tostring(love.timer.getFPS())
 end
 
 function random_prop()
@@ -1018,5 +1044,5 @@ TODO:
 write a real parsing system [DONE]
 add conditions [DONE]
 
-add check to remove rules if all used IDs are contained in another so that making BAABA ON KEEKE AND FLAG IS YOU is easier
+add check to remove rules if they start with a firstword that is in the middle of another rule in the same direction [FLAG ON BAABA IS YOU -> BAABA is not allowed to start a rule to the right]
 ]]

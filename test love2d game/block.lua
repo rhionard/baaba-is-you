@@ -1,7 +1,7 @@
 love.filesystem.load("rules.lua")()
 love.filesystem.load("main.lua")()
 love.filesystem.load("tool.lua")()
-local colorblocks = {
+colorblocks = {
   {
     name = "red",
     color = {1,1}
@@ -42,7 +42,13 @@ local dirblocks = {
   "down"
 }
 local dir
-function startproperties()
+
+local have_indicators = {
+  jar = 1,
+  ice = 1
+}
+function startproperties(start)
+  effects()
   for i,c in ipairs(Objects) do
     if c.file == nil then
       c.color = getspritevalues(c.name).color
@@ -55,6 +61,7 @@ function startproperties()
     c.old = false
     c.sleep = false
     c.float = false
+    c.have = nil
     if(c.name == "text_clipboard")then
       local found  = false
       for i,val in ipairs(objectValues)do
@@ -67,50 +74,68 @@ function startproperties()
       end
     end
   end
-  local newicon = false
-
+  if not start then
+    local newicon = false
+    local alreadyiconed = nil
+    local oldicon = false
+    local iconchangeless = false
     for a,b in ipairs(rules) do
-      if  (b[1] == "icon") and (b[2] == "is") and testcond(b[4], "icon") then
-        if love.filesystem.getInfo("sprite/" .. b[3] .. ".png",{}) ~= nil then
-          add_undo("iconchange", {oldicon = currenticon})
-          local baseimage = love.image.newImageData("sprite/" .. b[3] .. ".png")
-          local bcolor = getspritevalues(b[3]).color
-          tint_icon(baseimage, bcolor)
-          currenticon = b[3]
-        elseif b[3] == "meta" and string.sub(currenticon, 1, 5) ~= "text_" then
-          add_undo("iconchange", {oldicon = currenticon})
-          local baseimage = love.image.newImageData("sprite/text_" .. currenticon .. ".png")
-          local bcolor = getspritevalues("text_" .. currenticon).color
-          tint_icon(baseimage, bcolor)
-          currenticon = "text_" .. currenticon
-        elseif b[3] == "unmeta" and string.sub(currenticon, 1, 5) == "text_" then
-          add_undo("iconchange", {oldicon = currenticon})
-          local baseimage = love.image.newImageData("sprite/" .. string.sub(currenticon, 6) .. ".png")
-          local bcolor = getspritevalues(string.sub(currenticon, 6)).color
-          tint_icon(baseimage, bcolor)
-          currenticon = string.sub(currenticon, 6)
-        elseif b[3] == "sleep" and getspritevalues(currenticon).rotate == 6 then
-          local baseimage = love.image.newImageData("sprite/" .. currenticon .. "-right-sleep.png")
-          local bcolor = getspritevalues(currenticon).color
-          tint_icon(baseimage, bcolor)
-          newicon = true
-        else
-          for i,color in ipairs(colorblocks)do
-            if b[3] == color.name then
-              local baseimage = love.image.newImageData("sprite/" .. currenticon .. ".png")
-              tint_icon(baseimage, color.color)
-              newicon = true
-            end
-          end
-        end
-
+      if  (b[1] == "icon") and (b[2] == "is") and (b[3] == "icon") then
+        iconchangeless = true
       end
     end
+      for a,b in ipairs(rules) do
+        if  (b[1] == "icon") and (b[2] == "is") and testcond(b[4], "icon") and not iconchangeless then
+          if love.filesystem.getInfo("sprite/" .. b[3] .. ".png",{}) ~= nil then
+            if currenticon ~= oldicon then
+              if alreadyiconed == nil then
+                add_undo("iconchange", {oldicon = currenticon})
+                local baseimage = love.image.newImageData("sprite/" .. b[3] .. ".png")
+                local bcolor = getspritevalues(b[3]).color
+                alreadyiconed = tint_icon(baseimage, bcolor)
+                currenticon = b[3]
+              else
+                local baseimage = love.image.newImageData("sprite/" .. b[3] .. ".png")
+                local bcolor = getspritevalues(b[3]).color
+                alreadyiconed = add_icon(alreadyiconed, baseimage, bcolor)
+                love.window.setIcon(alreadyiconed)
+              end
+            end
+          elseif b[3] == "meta" and string.sub(currenticon, 1, 5) ~= "text_" and not iconchangeless then
+            add_undo("iconchange", {oldicon = currenticon})
+            local baseimage = love.image.newImageData("sprite/text_" .. currenticon .. ".png")
+            local bcolor = getspritevalues("text_" .. currenticon).color
+            tint_icon(baseimage, bcolor)
+            currenticon = "text_" .. currenticon
+          elseif b[3] == "unmeta" and string.sub(currenticon, 1, 5) == "text_" and not iconchangeless then
+            add_undo("iconchange", {oldicon = currenticon})
+            local baseimage = love.image.newImageData("sprite/" .. string.sub(currenticon, 6) .. ".png")
+            local bcolor = getspritevalues(string.sub(currenticon, 6)).color
+            tint_icon(baseimage, bcolor)
+            currenticon = string.sub(currenticon, 6)
+          elseif b[3] == "sleep" and getspritevalues(currenticon).rotate == 6 then
+            local baseimage = love.image.newImageData("sprite/" .. currenticon .. "-right-sleep.png")
+            local bcolor = getspritevalues(currenticon).color
+            tint_icon(baseimage, bcolor)
+            newicon = true
+          else
+            for i,color in ipairs(colorblocks)do
+              if b[3] == color.name then
+                local baseimage = love.image.newImageData("sprite/" .. currenticon .. ".png")
+                tint_icon(baseimage, color.color)
+                newicon = true
+              end
+            end
+          end
 
-    if not newicon and love.filesystem.getInfo("sprite/" .. currenticon .. ".png",{}) ~= nil then
-      local baseimage = love.image.newImageData("sprite/" .. currenticon .. ".png")
-      local bcolor = getspritevalues(currenticon).color
-      tint_icon(baseimage, bcolor)
+        end
+      end
+
+      if not newicon and love.filesystem.getInfo("sprite/" .. currenticon .. ".png",{}) ~= nil then
+        local baseimage = love.image.newImageData("sprite/" .. currenticon .. ".png")
+        local bcolor = getspritevalues(currenticon).color
+        tint_icon(baseimage, bcolor)
+      end
     end
 
 
@@ -152,7 +177,6 @@ function startproperties()
         end
       end
     end
-
 
 
 
@@ -200,13 +224,18 @@ function startproperties()
        c.hide = true
      end
 
+     local havers = objectswithverb("have")
+     for i, c in ipairs(havers) do
+       if have_indicators[c.unit.name] == 1 then
+         c.unit.have = {c.target, love.graphics.newImage("sprite/" .. c.target .. ".png")}
+       end
+     end
+
 end
 
 function findproperties()
   winning = true
   startproperties()
-
-
 
   local istextify2 = objectswithproperty("text")
    for i,c in ipairs(istextify2) do
@@ -217,6 +246,29 @@ function findproperties()
 
      end
    end
+
+
+   local istextify3 = objectswithproperty("particle")
+    for i,c in ipairs(istextify3) do
+      if c.transformable and string.sub(c.name, 1, 10) ~= "text_text_" then
+        particle("obj", c.x, c.y, 1, nil, true)
+        particles[#particles].color = c.color
+        particles[#particles].usesprite = c.sprite
+        handledels({c}, false)
+
+      end
+    end
+
+    local istextify3 = objectswithproperty("particle")
+     for i,c in ipairs(istextify3) do
+       if c.transformable and string.sub(c.name, 1, 10) ~= "text_text_" then
+         particle("obj", c.x, c.y, 1, nil, true)
+         particles[#particles].color = c.color
+         particles[#particles].usesprite = c.sprite
+         handledels({c}, false)
+
+       end
+     end
 
    local istextify = objectswithproperty("meta")
     for i,c in ipairs(istextify) do
@@ -284,9 +336,28 @@ function findproperties()
          end
       end
    end]]
-
    for i, rule in ipairs(rules) do
      local b = rule[3]
+     if rule[2] == "is" and getspritevalues("text_" .. b).type == 0 then
+       for a, c in ipairs(Objects) do
+         if matches(rule[1], c) and matches(rule[3], c) and testcond(rule[4], c.id) then
+           c.transformable = false
+         end
+       end
+     end
+   end
+   for i, rule in ipairs(rules) do
+     local b = rule[3]
+     if b == "choose" then
+       if chooserule == nil then
+         b = "nah"
+      else
+        b = chooserule[2] or "nah"
+      end
+     end
+     if b == nil then
+       b = "nah"
+     end
      if rule[2] == "is" and getspritevalues("text_" .. b).type == 0 and b ~= "group" and b ~= "text" and b ~= "file" and b ~= rule[1] then
        for a, c in ipairs(Objects) do
          if matches(rule[1], c) and c.transformable and testcond(rule[4], c.id) then
@@ -339,23 +410,33 @@ function findproperties()
  dels = handledels(dels)
 
  local isfall = objectswithproperty("fall")
+ local youwillfall = {}
  for i,faller in ipairs(isfall) do
    local limit = 0
    local to_x = faller.tilex
    local to_y = faller.tiley
    local done = false
+   local off = 1
    while limit < 300 and not done do
      to_y = to_y + 1
      local here = allhere(to_x, to_y)
      local fail = false
      for a, b in ipairs(here) do
-       if ruleexists(b.id, nil, "is", "stop") or ruleexists(b.id, nil, "is", "push") then
+       if ruleexists(b.id, nil, "is", "stop") or ruleexists(b.id, nil, "is", "push") or ruleexists(b.id, nil, "is", "pull")  then
          fail = true
+         if ruleexists(b.id, nil, "is", "fall") then
+           off = off + 1
+           fail = false
+         end
+         break
        end
      end
      if fail or to_y > levely - 1 then
-       to_y = to_y - 1
-       update(faller.id, to_x, to_y)
+       to_y = to_y - off
+
+
+       table.insert(youwillfall, {faller.id, to_x, to_y})
+
        --[[faller.x = to_x * tilesize
        faller.y = to_y * tilesize
        faller.tilex = to_x
@@ -366,58 +447,69 @@ function findproperties()
    end
 
  end
+ for i, faller in ipairs(youwillfall) do
 
- local isselect = objectswithproperty("select")
- for i, select in ipairs(isselect) do
-   local dir = ""
-   if((love.keyboard.isDown("w")) or love.keyboard.isDown("up"))then dir = "up"
-   elseif((love.keyboard.isDown("a"))or love.keyboard.isDown("left"))then dir = "left"
-   elseif((love.keyboard.isDown("s"))or love.keyboard.isDown("down"))then dir = "down"
-   elseif((love.keyboard.isDown("d"))or love.keyboard.isDown("right"))then dir = "right" end
-   if turnkey == "space" then
-     --do level thing
-     thelevel = ""
-     local there = allhere(select.tilex, select.tiley)
-     for a, b in ipairs(there) do
-       if b.name == "level" then
-         thelevel = b.levelinside
-         break
-       end
-     end
-
-     enterlevel(thelevel)
-     return
-
-   end
-   local nx, ny = select.tilex, select.tiley
-   if(dir == "right")then nx = nx+1
-   elseif(dir == "left")then nx = nx-1
-   elseif(dir == "down")then ny = ny+1
-   elseif(dir == "up")then ny = ny-1 end
-   local there = allhere(nx, ny)
-   for a, b in ipairs(there) do
-     if ruleexists(b.id, nil, "is", "path") or (b.name == "level" and b.lock == nil) then
-       update(select.id, nx, ny)
-       select.dir = dir
-
-
-
-     end
-   end
+   update(faller[1], faller[2], faller[3])
  end
 
+ if not map_turn then
+   local isselect = objectswithproperty("select")
+   for i, select in ipairs(isselect) do
+     local dir = ""
+     if((love.keyboard.isDown("w")) or love.keyboard.isDown("up"))then dir = "up"
+     elseif((love.keyboard.isDown("a"))or love.keyboard.isDown("left"))then dir = "left"
+     elseif((love.keyboard.isDown("s"))or love.keyboard.isDown("down"))then dir = "down"
+     elseif((love.keyboard.isDown("d"))or love.keyboard.isDown("right"))then dir = "right" end
+     if turnkey == "space" then
+       --do level thing
+       thelevel = ""
+       local there = allhere(select.tilex, select.tiley)
+       for a, b in ipairs(there) do
+         if b.name == "level" then
+           thelevel = b.levelinside
+           break
+         end
+       end
 
- for i, select in ipairs(isselect) do
+       table.insert(map_level, {})
+       for i, j in ipairs(Objects) do
+         table.insert(map_level[#map_level], j)
+       end
 
-     local there = allhere(select.tilex, select.tiley)
+       enterlevel(thelevel)
+       return 0
+
+     end
+     local nx, ny = select.tilex, select.tiley
+     if(dir == "right")then nx = nx+1
+     elseif(dir == "left")then nx = nx-1
+     elseif(dir == "down")then ny = ny+1
+     elseif(dir == "up")then ny = ny-1 end
+     local there = allhere(nx, ny)
      for a, b in ipairs(there) do
-       if b.name == "level" then
-         levelhandle = b.levelinside
-         break
+       if ruleexists(b.id, nil, "is", "path") or (b.name == "level" and b.lock == nil) then
+         update(select.id, nx, ny)
+         --select.dir = dir
+
+
+
        end
      end
+   end
 
 
+   for i, select in ipairs(isselect) do
+
+       local there = allhere(select.tilex, select.tiley)
+       for a, b in ipairs(there) do
+         if b.name == "level" then
+           levelhandle = b.levelinside
+           break
+         end
+       end
+
+
+   end
  end
 
  local teles = {}
@@ -429,7 +521,7 @@ function findproperties()
    local telei = 1
    local z = 0
    for k, j in ipairs(istele) do
-     if (j.name == tele.name) then
+     if (j.name == tele.name) and float(j.id, tele.id) then
        table.insert(totele, j)
        z = z + 1
      end
@@ -448,11 +540,15 @@ function findproperties()
   end
   for a, b in ipairs(teles) do
     update(b[1], b[2], b[3])
+    local bunit = Objects[b[1]]
+    particle("tele", bunit.tilex * tilesize, bunit.tiley * tilesize, 4, nil, true)
+    playsfx("tele" .. love.math.random(1, 2), true)
   end
 
  local isset = objectswithproperty("set")
 
  for i, set in ipairs(isset) do
+   add_undo("setchange", {undo_id = set.undo_id, orig_x = set.orig_x + 0, orig_y = set.orig_y + 0})
    set.orig_x = set.tilex
    set.orig_y = set.tiley
  end
@@ -468,8 +564,8 @@ function findproperties()
    love.system.openURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
  end
 
- local isxnopyt = objectswithproperty("xnopyt")
- for i,xnoped in ipairs(isxnopyt) do
+ local ispoof = objectswithproperty("poof")
+ for i,xnoped in ipairs(ispoof) do
    table.insert(dels,xnoped)
  end
  dels = handledels(dels, false)
@@ -489,6 +585,7 @@ function findproperties()
           end
          if hotmelt then
           table.insert(dels,melt)
+          particle("hot", melt.to_x, melt.to_y, love.math.random(3, 5), nil, true)
          end
    end
  end
@@ -498,17 +595,16 @@ function findproperties()
   for i,sinker in ipairs(issink) do
    local onhere = on(sinker)
    if #onhere > 0 then
-     local floating = ruleexists(sinker.id, nil ,"is","float")
 
        local sunk = false
        for o,here in ipairs(onhere) do
-         local floating2 = ruleexists(here.id, nil ,"is","float")
-         if floating2 == floating then
+         if float(here.id, sinker.id) then
            table.insert(dels,here)
            sunk = true
          end
        end
        if sunk then
+         particle("water", sinker.to_x, sinker.to_y, love.math.random(3, 5), {color = sinker.color}, true)
          table.insert(dels,sinker)
        end
 
@@ -522,12 +618,12 @@ function findproperties()
   for i,burner in ipairs(isburn) do
    local onhere = on(burner)
    if #onhere > 0 then
-     local floating = ruleexists(burner.id, nil ,"is","float")
 
        for o,here in ipairs(onhere) do
-         local floating2 = ruleexists(here.id, nil ,"is","float")
-         if floating2 == floating then
+         if float(here.id, burner.id) then
            table.insert(dels,here)
+           local x, y = here.to_x or here.x, here.to_y or here.y
+           particle("hot", x, y, love.math.random(3, 5), nil, true)
          end
        end
 
@@ -542,12 +638,11 @@ function findproperties()
   for i,weaker in ipairs(isweak) do
    local onhere = on(weaker)
    if #onhere > 0 then
-     local floating = ruleexists(weaker.id, nil ,"is","float")
 
        for o,here in ipairs(onhere) do
-         local floating2 = ruleexists(here.id, nil ,"is","float")
-         if floating2 == floating then
+         if float(here.id, weaker.id) then
            table.insert(dels,weaker)
+           particle("destroy", here.tilex * tilesize, here.tiley * tilesize, 4, nil, true)
          end
        end
 
@@ -564,8 +659,9 @@ function findproperties()
    local toeat = eat.target
    local onhere = on(unit)
    for _, j in ipairs(onhere) do
-     if matches(eat.target, j) then
+     if matches(eat.target, j) and float(j.id, unit.id) then
        table.insert(dels, j)
+       particle("hot", j.to_x, j.to_y, love.math.random(3, 5), nil, true)
      end
    end
  end
@@ -576,6 +672,7 @@ function findproperties()
  local isonly = objectswithproperty("only")
   for i,onlier in ipairs(isonly) do
    if i > 1 then
+     particle("destroy", onlier.to_x, onlier.to_y, 4, nil, true)
     table.insert(dels,onlier)
    end
  end
@@ -586,6 +683,7 @@ function findproperties()
   for i,direct in ipairs(dirblocks)do
    local isdir = objectswithproperty(direct)
    for j,c in ipairs(isdir)do
+     add_undo("update", {id = c.undo_id, dir = c.dir,old_x = c.tilex, old_y = c.tiley})
     c.dir = direct
    end
   end
@@ -599,21 +697,23 @@ function findproperties()
    if #onhere > 0 then
      for o,here in ipairs(onhere) do
        for d,door in ipairs(doors) do
-         if(here == door) and ruleexists(here.id, nil ,"is","float") == ruleexists(door.id, nil ,"is","float") then
+         if(here == door) and float(here.id, door.id) then
            table.insert(dels,door)
            table.insert(dels,key)
+           particle("open", key.x, key.y, 4, nil, true)
            break
          end
        end
      end
    end
  end
- dels = handledels(dels)
+ dels = handledels(dels, "keys")
  local isdefeat = objectswithproperty("defeat")
   for i,c in ipairs(isdefeat) do
   local onhere = on_plus(c)
   for h,here in ipairs(onhere) do
-   if ruleexists(here.id,here.name,"is","you") or ruleexists(here.id,here.name,"is","you2") and ruleexists(here.id, nil ,"is","float") == ruleexists(c.id, nil ,"is","float") then
+   if (ruleexists(here.id,here.name,"is","you") or ruleexists(here.id,here.name,"is","you2")) and float(here.id, c.id) then
+     particle("destroy", here.to_x, here.to_y, 5, nil, true)
     table.insert(dels,here)
    end
   end
@@ -627,7 +727,11 @@ function findproperties()
      local tomake = unitreference(unit, make.target)
      local onhere = on_plus(unit)
 
-
+     if make.target == "particle" then
+       particle("obj", unit.x, unit.y, 1, nil, true)
+       particles[#particles].color = unit.color
+       particles[#particles].usesprite = unit.sprite
+     end
 
      for j, k in ipairs(tomake) do
        local valid = true
@@ -681,13 +785,15 @@ function handledels(dels, dtype_, nolink_)
 
   local link = false
   if #dels > 0 and dtype_ ~= false then
-    love.audio.play(love.audio.newSource("sound/" .. sound .. ".wav","static"))
+    playsfx(sound, true)
+    shake = 0.35
+    shake_amount = 1.2
   end
 
  for d,del in ipairs(dels) do
    if dtype_ ~= false then
      for i,rule in ipairs(rules) do
-      if(matches(rule[1], del)) and (rule[2] == "have")then
+      if(matches(rule[1], del)) and (rule[2] == "have") and testcond(rule[4], del.id)then
         local matches = unitreference(del, rule[3])
         for i, z in ipairs(matches) do
           makeobject(del.tilex,del.tiley,z,del.dir)
@@ -698,8 +804,11 @@ function handledels(dels, dtype_, nolink_)
    if not no_link and ruleexists(del.id, nil, "is", "link") then
      link = true
    end
+
    add_undo("destroy", {id = del.id, undo_id = del.undo_id, dx = del.tilex, dy = del.tiley, dname = del.name, ddir = del.dir})
   removeunit(del)
+
+
  end
  if link then
    handledels(objectswithproperty("link"), false, false)
@@ -738,6 +847,23 @@ function tint_icon(baseimage, bcolor)
     end
   end
   love.window.setIcon(usedimage)
+  return usedimage
+end
+function add_icon(baseimage1, baseimage2, bcolor)
+  local usedimage1 = baseimage1:clone()
+  local usedimage2 = baseimage2:clone()
+  local iwidth, iheight = usedimage1:getWidth(), usedimage1:getHeight()
+  local ccolor = palettecolors[bcolor[1]][bcolor[2]]
+    for ix = 0, iwidth - 1 do
+      for iy = 0, iheight - 1 do
+        local rval, gval, bval, aval = usedimage1:getPixel(ix, iy)
+        local rval2, gval2, bval2, aval2 = usedimage2:getPixel(ix, iy)
+        if aval > 0.5 then
+          usedimage1:setPixel(ix, iy, (rval + rval2) / 2, (gval + gval2) / 2, (bval + bval2) / 2, (aval + aval2) / 2)
+        end
+      end
+    end
+  return usedimage1
 
 end
 
@@ -789,6 +915,7 @@ function makefile(x,y,dir_)
     obj.orig_x = x
     obj.orig_y = y
     obj.small = 1
+    obj.anim_stack = {}
 
     obj.undo_id = #Objects
     dotiling(obj)
