@@ -3,35 +3,41 @@ function notimplemented()
 end
 
 menu_state = "main"
-
+font = love.graphics.newFont(12, "normal", love.graphics.getDPIScale())
 mutemusic = false
-
+play_hover_sound = nil
+can_play_hover = true
 function menu()
-
+    local hovers = false
     -- drawing the menu itself we have the 4 buttons play (0% done) settings (dont even have an idea) quit (who the heck uses this) and editor (was already in the game)
     local width, height = love.graphics.getDimensions()
     for i, j in ipairs(menu_buttons) do
 
-        if j.state == menu_state then
+        if j.state == menu_state and (j.tab == nil or j.tab == currtab) then
 
           local jx, jy = j.x * (width / 1280), j.y * (height / 820)
           local jsizex, jsizey = j.sizex * (width / 1280), j.sizey * (height / 820)
-          love.graphics.setColor(j.color[1], j.color[2], j.color[3])
+
+          if j.drawfunc ~= nil then
+            j.drawfunc(j)
+          end
+          love.graphics.setColor(j.color[1], j.color[2], j.color[3], j.color[7])
 
           if editlevelname and j.text == "Rename" then
             love.graphics.setColor((j.color[1]) / 2, (j.color[2]) / 2, (j.color[3]) / 2)
           end
 
-          if mutemusic and j.text == "Mute Music" then
-            love.graphics.setColor(0.95, 0.3, 0.85)
-          end
+
 
           if j.justtext ~= true then
             if love.mouse.getX() > jx and love.mouse.getX() < jx + jsizex and  love.mouse.getY() > jy and love.mouse.getY() < jy + jsizey then
+
+              play_hover_sound = true
+              hovers = true
               if not love.mouse.isDown() then
-                love.graphics.setColor((j.color[1] + 1) / 2, (j.color[2] + 1) / 2, (j.color[3] + 1) / 2)
+                love.graphics.setColor((j.color[1] + 1) / 2, (j.color[2] + 1) / 2, (j.color[3] + 1) / 2, j.color[7])
               else
-                love.graphics.setColor((j.color[1]) / 2, (j.color[2]) / 2, (j.color[3]) / 2)
+                love.graphics.setColor((j.color[1]) / 2, (j.color[2]) / 2, (j.color[3]) / 2, j.color[7])
               end
             end
           end
@@ -41,184 +47,521 @@ function menu()
 
           love.graphics.rectangle("fill", jx, jy, jsizex, jsizey)
           love.graphics.rectangle("line", jx, jy, jsizex, jsizey)
-          love.graphics.setColor(j.color[4], j.color[5], j.color[6])
-          if j.id ~= "textinput" then
-            love.graphics.printf(j.text, jx, jy + jsizey / 4, jsizex, "center")
-          else
-            love.graphics.printf(current_textinput, jx, jy + jsizey / 4, jsizex, "center", 0)
-          end
+          love.graphics.setColor(j.color[4], j.color[5], j.color[6] , j.color[8])
+          local _, linecount = font:getWrap(j.text, jsizex)
+          love.graphics.printf(j.text, jx, jy + jsizey / 4 - (#linecount - 1) * 6, jsizex, "center")
+
 
         end
     end
+    if not hovers then
+      can_play_hover = true
+    end
+    if play_hover_sound and can_play_hover then
+      playsfx("hover3", true)
+      can_play_hover = false
+      play_hover_sound = false
+    end
 end
 
-function menu_load()
+menu_states = {
+  main = {
 
-  menu_buttons = {}
+    load = function()
+
+      map_level = {}
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Editor",
+        x = 540,
+        y = 400,
+        sizex = 180,
+        sizey = 30,
+        func = gotoeditor,
+        state = "main"
+      })
 
 
-  menu_state = "main"
+      table.insert(menu_buttons, {
+          color = {0.2, 0.3, 0.7, 0, 0, 0},
+          text = "Quit",
+          x = 540,
+          y = 500,
+          sizex = 180,
+          sizey = 30,
+          func = love.event.quit,
+          state = "main"
+      })
+
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Play",
+        x = 540,
+        y = 350,
+        sizex = 180,
+        sizey = 30,
+        func = gotoplay,
+        state = "main"
+      })
+
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Settings",
+        x = 540,
+        y = 450,
+        sizex = 180,
+        sizey = 30,
+        func = gotosettings,
+        state = "main"
+      })
+    end
+  },
+  settings = {
+    load = function()
 
 
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Back",
+        x = 540,
+        y = 650,
+        sizex = 180,
+        sizey = 30,
+        func = backtomenu,
+        state = "settings"
+      })
+
+
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Back",
+        x = 540,
+        y = 650,
+        sizex = 180,
+        sizey = 30,
+        func = function()
+          menu_load("pause")
+        end,
+        state = "pause_settings"
+      })
+
+
+      table.insert(menu_buttons, {
+        color = {0.3, 0.3, 0.4, 0, 0, 0},
+        text = "Mute Music",
+        x = 540,
+        y = 230,
+        sizex = 180,
+        sizey = 30,
+        state = "settings",
+        func = nomoremusic,
+        drawfunc = function(j)
+          j.color = {0.3, 0.3, 0.4, 0, 0, 0}
+          if mutemusic then
+            j.color = {0.95, 0.3, 0.85, 0, 0, 0}
+          end
+        end
+      })
+
+      table.insert(menu_buttons, {
+        color = {0.3, 0.3, 0.4, 0, 0, 0},
+        text = "Mute Sound Effects",
+        x = 540,
+        y = 270,
+        sizex = 180,
+        sizey = 30,
+        state = "settings",
+        func = nomoresfx,
+        drawfunc = function(j)
+          j.color = {0.3, 0.3, 0.4, 0, 0, 0}
+          if mutesfx then
+            j.color = {0.95, 0.3, 0.85, 0, 0, 0}
+          end
+        end
+      })
+
+      table.insert(menu_buttons, {
+        color = {0.3, 0.3, 0.4, 0, 0, 0},
+        text = "Useless Setting",
+        x = 540,
+        y = 310,
+        sizex = 180,
+        sizey = 30,
+        state = "settings",
+        func = notimplemented
+      })
+
+    end
+
+  },
+  editor = {
+    load = function()
+
+        table.insert(menu_buttons, {
+          color = {0.2, 0.3, 0.7, 0, 0, 0},
+          text = "Back",
+          x = 1200,
+          y = 5,
+          sizex = 60,
+          sizey = 30,
+          func = gotomenu,
+          state = "editor"
+        })
+
+        table.insert(menu_buttons, {
+          color = {0.2, 0.3, 0.7, 0, 0, 0},
+          text = "Objects",
+          x = 560,
+          y = 725,
+          sizex = 180,
+          sizey = 30,
+          func = function()
+            hideui = not hideui
+          end,
+          state = "editor"
+        })
+        table.insert(menu_buttons, {
+          color = {0.2, 0.3, 0.7, 0, 0, 0},
+          text = "Swap",
+          x = 870,
+          y = 725,
+          sizex = 80,
+          sizey = 30,
+          func = editor_swap,
+          state = "editor"
+        })
+
+        table.insert(menu_buttons, {
+          color = {0.2, 0.3, 0.7, 0, 0, 0},
+          text = "Select",
+          x = 960,
+          y = 725,
+          sizex = 80,
+          sizey = 30,
+          func = editor_eyedropping,
+          state = "editor"
+        })
+
+        table.insert(menu_buttons, {
+          color = {0.2, 0.3, 0.7, 0, 0, 0},
+          text = "Edit",
+          x = 1050,
+          y = 725,
+          sizex = 80,
+          sizey = 30,
+          func = editor_leveldropping,
+          state = "editor"
+        })
+
+
+          table.insert(menu_buttons, {
+            color = {0.2, 0.3, 0.7, 0, 0, 0},
+            text = "Save",
+            x = 290,
+            y = 725,
+            sizex = 60,
+            sizey = 30,
+            func = dolevelsave,
+            state = "editor"
+          })
+
+          table.insert(menu_buttons, {
+            color = {0.2, 0.3, 0.7, 0, 0, 0},
+            text = "Load",
+            x = 360,
+            y = 725,
+            sizex = 60,
+            sizey = 30,
+            func = dolevelload,
+            state = "editor"
+          })
+
+
+            table.insert(menu_buttons, {
+              color = {0.2, 0.3, 0.7, 0, 0, 0},
+              text = "Rename",
+              x = 80,
+              y = 725,
+              sizex = 60,
+              sizey = 30,
+              func = dolevelname,
+              state = "editor"
+            })
+
+            table.insert(menu_buttons, {
+              color = {0.2, 0.2, 0.3, 1, 1, 1},
+              text = "",
+              x = 150,
+              y = 720,
+              sizex = 125,
+              sizey = 40,
+              state = "editor",
+              justtext = true,
+              id = "textinput",
+              drawfunc = function(b)
+                b.text = current_textinput
+              end
+            })
+
+            --TODO: tooltips. don't really feel like implementing another timer system today
+    end
+  },
+  play = {
+    load = function()
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Back",
+        x = 1200,
+        y = 5,
+        sizex = 60,
+        sizey = 30,
+        func = gotomenuplay,
+        state = "play"
+      })
+
+      local filest = {}
+      local file_table = love.filesystem.getDirectoryItems("levels")
+      for i,v in ipairs(file_table) do
+        local file = "levels/"..v
+        local info = love.filesystem.getInfo(file)
+        if info then
+          if info.type == "file" then
+            table.insert(menu_buttons, {
+              color = {0.2, 0.3, 0.7, 0, 0, 0},
+              text = v,
+              x = 350 + 230 * (((i - 1) % levels_per_tab) % 3),
+              y = 70 + 35 * math.floor((((i - 1) % levels_per_tab) ) / 3),
+              sizex = 160,
+              sizey = 30,
+              func = "auto_playlevel",
+              state = "play",
+              tab = math.floor((i - 1) / levels_per_tab) + 1,
+              drawfunc = function(b)
+                if b.color[1] == 0.2 and levelcompleted(b.text) then
+                  b.color = {0.1, 0.2, 0.4, 1, 1, 1}
+                end
+              end
+            })
+          end
+        end
+      end
+      tab_amount = math.ceil(#file_table / levels_per_tab)
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Previous",
+        x = 350,
+        y = 720,
+        sizex = 160,
+        sizey = 30,
+        func = prevtab,
+        state = "play"
+      })
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Next",
+        x = 810,
+        y = 720,
+        sizex = 160,
+        sizey = 30,
+        func = nexttab,
+        state = "play"
+      })
+      table.insert(menu_buttons, {
+        color = {0, 0, 0, 1, 1, 1},
+        text = "",
+        x = 580,
+        y = 720,
+        sizex = 160,
+        sizey = 30,
+        justtext = true,
+        state = "play",
+        drawfunc = function(b)
+          b.text = "Tab " .. currtab .. "/" .. tab_amount
+        end
+      })
+    end
+  },
+  playing = {
+    load = function()
+
+        table.insert(menu_buttons, {
+          color = {0.2, 0.3, 0.7, 0, 0, 0},
+          text = "Pause",
+          x = 1200,
+          y = 5,
+          sizex = 60,
+          sizey = 30,
+          func = pause,
+          state = "playing"
+        })
+    end
+  },
+  pause = {
+    load = function()
+      add_backdrop()
+
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 1, 1, 1, 0},
+        text = levelname,
+        x = 540,
+        y = 5,
+        sizex = 180,
+        sizey = 30,
+        justtext = true,
+        state = "pause"
+      })
+
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Resume",
+        x = 540,
+        y = 50,
+        sizex = 180,
+        sizey = 30,
+        func = unpause,
+        state = "pause"
+      })
+
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Settings",
+        x = 540,
+        y = 95,
+        sizex = 180,
+        sizey = 30,
+        func = pausesettings,
+        state = "pause"
+      })
+
+      table.insert(menu_buttons, {
+        color = {0.2, 0.3, 0.7, 0, 0, 0},
+        text = "Back To Menu",
+        x = 540,
+        y = 140,
+        sizex = 180,
+        sizey = 30,
+        func = gotomenuplay,
+        state = "pause"
+      })
+      if #leveltree > 1 then
+        table.insert(menu_buttons, {
+          color = {0.2, 0.3, 0.7, 0, 0, 0},
+          text = "Back To Map",
+          x = 540,
+          y = 185,
+          sizex = 180,
+          sizey = 30,
+          func = gotomap,
+          state = "pause"
+        })
+      end
+
+    end
+  },
+  pause_settings = {
+    load = function()
+      --atom what happened with the indentation here?????????
+            add_backdrop()
+
+            table.insert(menu_buttons, {
+              color = {0.2, 0.3, 0.7, 0, 0, 0},
+              text = "Back",
+              x = 540,
+              y = 650,
+              sizex = 180,
+              sizey = 30,
+              func = function()
+                menu_load("pause")
+              end,
+              state = "pause_settings"
+            })
+
+
+            table.insert(menu_buttons, {
+              color = {0.3, 0.3, 0.4, 0, 0, 0},
+              text = "Mute Music",
+              x = 540,
+              y = 230,
+              sizex = 180,
+              sizey = 30,
+              state = "pause_settings",
+              func = nomoremusic,
+              drawfunc = function(j)
+                j.color = {0.3, 0.3, 0.4, 0, 0, 0}
+                if mutemusic then
+                  j.color = {0.95, 0.3, 0.85, 0, 0, 0}
+                end
+              end
+            })
+
+            table.insert(menu_buttons, {
+              color = {0.3, 0.3, 0.4, 0, 0, 0},
+              text = "Mute Sound Effects",
+              x = 540,
+              y = 270,
+              sizex = 180,
+              sizey = 30,
+              state = "pause_settings",
+              func = nomoresfx,
+              drawfunc = function(j)
+                j.color = {0.3, 0.3, 0.4, 0, 0, 0}
+                if mutesfx then
+                  j.color = {0.95, 0.3, 0.85, 0, 0, 0}
+                end
+              end
+            })
+
+            table.insert(menu_buttons, {
+              color = {0.3, 0.3, 0.4, 0, 0, 0},
+              text = "Useless Setting",
+              x = 540,
+              y = 310,
+              sizex = 180,
+              sizey = 30,
+              state = "pause_settings",
+              func = notimplemented
+            })
+          end
+
+  }
+
+}
+
+depause_state = "playing"
+game_paused = false
+function pause()
+  depause_state = menu_state
+  menu_load("pause")
+  game_paused = true
+end
+function unpause()
+  menu_load(depause_state)
+  game_paused = false
+end
+
+function add_backdrop()
+  --not jank way of making a backdrop
   table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Editor",
-    x = 600,
-    y = 400,
-    sizex = 60,
-    sizey = 30,
-    func = gotoeditor,
-    state = "main"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Quit",
-    x = 600,
-    y = 500,
-    sizex = 60,
-    sizey = 30,
-    func = love.event.quit,
-    state = "main"
-  })
-
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.2, 0.2, 0, 0, 0},
-    text = "Play",
-    x = 600,
-    y = 350,
-    sizex = 60,
-    sizey = 30,
-    func = gotoplay,
-    state = "main"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Settings",
-    x = 600,
-    y = 450,
-    sizex = 60,
-    sizey = 30,
-    func = gotosettings,
-    state = "main"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Back",
-    x = 600,
-    y = 650,
-    sizex = 60,
-    sizey = 30,
-    func = backtomenu,
-    state = "settings"
-  })
-
-
-  table.insert(menu_buttons, {
-    color = {0.3, 0.3, 0.4, 0, 0, 0},
-    text = "Mute Music",
-    x = 600,
-    y = 230,
-    sizex = 60,
-    sizey = 50,
-    state = "settings",
-    func = nomoremusic
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.3, 0.3, 0.4, 0, 0, 0},
-    text = "Useless Setting",
-    x = 580,
-    y = 300,
-    sizex = 100,
-    sizey = 40,
-    state = "settings",
-    func = notimplemented
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Back",
-    x = 1200,
-    y = 5,
-    sizex = 60,
-    sizey = 30,
-    func = gotomenu,
-    state = "editor"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Back",
-    x = 1200,
-    y = 5,
-    sizex = 60,
-    sizey = 30,
-    func = gotomenuplay,
-    state = "play"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Back",
-    x = 1200,
-    y = 5,
-    sizex = 60,
-    sizey = 30,
-    func = gotomenuplay,
-    state = "playing"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Save",
-    x = 290,
-    y = 725,
-    sizex = 60,
-    sizey = 30,
-    func = dolevelsave,
-    state = "editor"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Load",
-    x = 360,
-    y = 725,
-    sizex = 60,
-    sizey = 30,
-    func = dolevelload,
-    state = "editor"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.3, 0.7, 0, 0, 0},
-    text = "Rename",
-    x = 80,
-    y = 725,
-    sizex = 60,
-    sizey = 30,
-    func = dolevelname,
-    state = "editor"
-  })
-
-  table.insert(menu_buttons, {
-    color = {0.2, 0.2, 0.3, 1, 1, 1},
+    color = {0.0, 0.0, 0.0, 0, 0, 0, 0.5},
     text = "",
-    x = 150,
-    y = 720,
-    sizex = 125,
-    sizey = 40,
-    state = "editor",
+    x = 0,
+    y = 0,
+    sizex = 1280,
+    sizey = 820,
     justtext = true,
-    id = "textinput"
+    state = menu_state
   })
+end
 
-
-
+function pausesettings()
+  menu_load("pause_settings")
+end
+function menu_load(state)
+  --got rid of this garbage
+  menu_buttons = {}
+  menu_state = state
+  menu_states[menu_state].load()
+  --
 end
 
 
@@ -234,7 +577,7 @@ function addpopup(x, y, things, _sx, _sy)
     state = gamestate,
     id = "popup",
     justtext = true,
-    popup = true
+    popup = "base"
   })
 
   for _, stuff in ipairs(things) do
@@ -248,7 +591,8 @@ function addpopup(x, y, things, _sx, _sy)
       state = gamestate,
       id = "popup",
       func = stuff.func,
-      popup = true
+      drawfunc = stuff.drawfunc,
+      popup = "top"
     })
   end
 
@@ -265,7 +609,7 @@ function gotoeditor()
 
   playmusic("default")
   gamestate = "editor"
-  menu_state = "editor"
+  menu_load("editor")
 
   palette_id = 1
   loadPalette(all_palettes[palette_id])
@@ -275,26 +619,22 @@ end
 
 function gotogame()
   gamestate = "playing"
-  menu_state = "playing"
+  menu_load("playing")
 end
 
 function gotomenu()
   leveltree = {}
   playmusic("baaba")
   gamestate = "menu"
-  menu_state = "main"
+  menu_load("main")
   heldtile = ""
   editor_curr_objects = {}
 end
 
 function gotomenuplay()
   leveltree = {}
-  delete_these_specific_menu_buttons()
-
-
 
   levelname = ""
-
 
   dielevel()
   love.timer.sleep(0.1)
@@ -302,40 +642,37 @@ function gotomenuplay()
 
   playmusic("baaba")
   gamestate = "menu"
-  menu_state = "main"
+  menu_load("main")
   editor_curr_objects = {}
 
 
 end
 
+function gotomap()
+  enterlevel(leveltree[#leveltree - 1])
+  table.remove(leveltree, #leveltree)
+  game_paused = false
+end
+levels_per_tab = 51
 function gotoplay()
-  menu_state = "play"
+  menu_load("play")
 
-  local filest = {}
-  local file_table = love.filesystem.getDirectoryItems("levels")
-  for i,v in ipairs(file_table) do
-    local file = "levels/"..v
-    local info = love.filesystem.getInfo(file)
-    if info then
-      if info.type == "file" then
-        table.insert(menu_buttons, {
-          color = {0.2, 0.3, 0.7, 0, 0, 0},
-          text = v,
-          x = 350 + 400 * ((i - 1) % 2),
-          y = 70 + 35 * math.floor((i - 1) / 2),
-          sizex = 160,
-          sizey = 30,
-          func = "auto_playlevel",
-          state = "play"
-        })
-      end
-    end
-  end
+end
+
+currtab = 1
+tab_amount = 1
+function nexttab()
+  currtab = math.min(currtab + 1, tab_amount)
+end
+
+function prevtab()
+  currtab = math.max(currtab - 1, 1)
 end
 
 function backtomenu()
   gamestate = "menu"
-  menu_state = "main"
+  menu_load("main")
+        leveltree = {}
 end
 
 function nomoremusic()
@@ -346,16 +683,20 @@ function nomoremusic()
     music:setVolume(0.3)
   end
 end
+mutesfx = false
+function nomoresfx()
+  mutesfx = not mutesfx
+end
 
 function gotosettings()
-  menu_state = "settings"
+  menu_load("settings")
 end
 
 function dolevelsave()
   saveleveldata(levelname)
 end
 function dolevelload()
-  loadleveldata(levelname)
+  loadleveldata(levelname, true)
 end
 
 function dolevelname()
@@ -427,25 +768,66 @@ function playlevel_advanced(j)
 
 end
 
+function remove_popups(delthese_)
+  selected_obj = nil
+
+  local delthese = delthese_ or {}
+
+  for i, j in ipairs(menu_buttons) do
+    if j.popup == "top" or j.popup == "base" then
+      table.insert(delthese, 1, i)
+    end
+  end
+  return delthese
+end
+
 function menu_press()
+
+  if eyedrop == "level" then
+    eyedrop = nil
+    playsfx("select")
+    editor_leveldrop()
+    return
+  elseif eyedrop == "eye" then
+    eyedrop = nil
+    playsfx("select")
+    editor_eyedrop()
+    return
+  end
 
   local width, height = love.graphics.getDimensions()
 
-
+  local delthese = {}
   for i, j in ipairs(menu_buttons) do
-      if j.justtext ~= true and j.state == menu_state then
+
+      if j.popup == "base" then
+        local jx, jy = j.x * (width / 1280), j.y * (height / 820)
+        local jsizex, jsizey = j.sizex * (width / 1280), j.sizey * (height / 820)
+        if not (love.mouse.getX() > jx and love.mouse.getX() < jx + jsizex and  love.mouse.getY() > jy and love.mouse.getY() < jy + jsizey) then
+          delthese = remove_popups(delthese)
+        end
+
+      end
+
+      if j.justtext ~= true and j.state == menu_state  and (j.tab == nil or j.tab == currtab) then
         local jx, jy = j.x * (width / 1280), j.y * (height / 820)
         local jsizex, jsizey = j.sizex * (width / 1280), j.sizey * (height / 820)
         if love.mouse.getX() > jx and love.mouse.getX() < jx + jsizex and  love.mouse.getY() > jy and love.mouse.getY() < jy + jsizey then
+          playsfx("click", true)
           if j.func ~= "auto_playlevel" then
-            j.func()
+            j.func(j)
+            break
           else
+            currtab = 1
+            tab_amount = 1
             table.insert(leveltree, j.text)
             gotogame()
-            love.timer.sleep(1)
+            --love.timer.sleep(1)
             levelname = j.text
             dolevelload()
-            love.timer.sleep(1)
+            --love.timer.sleep(1)
+
+            --what were these random sleeps for anyway? why would waiting one second ever help anything????
             loadlevel()
             gotogame()
             playmusic(musiclist[levelmusic])
@@ -460,6 +842,9 @@ function menu_press()
       end
   end
 
+  for i, j in ipairs(delthese) do
+    table.remove(menu_buttons, j)
+  end
 end
 
 curmusic = ""
@@ -469,7 +854,10 @@ function playmusic(name)
   end
   curmusic = name
   music:stop()
-  music = love.audio.newSource("sound/" .. name .. ".wav","static")
+  if musictable[name] == nil then
+    musictable[name] = love.audio.newSource("sound/" .. name .. ".wav","static")
+  end
+  music = musictable[name]
   music:play()
   music:setLooping(true)
   if mutemusic then
@@ -480,4 +868,19 @@ function playmusic(name)
       music:setVolume(0.3)
     end
   end
+end
+
+soundtable = {}
+function playsfx(sound, vary)
+  if mutesfx then
+    return
+  end
+  if (not soundtable[sound]) or soundtable[sound]:isPlaying() then
+    soundtable[sound] = love.audio.newSource("sound/" .. sound .. ".wav","static")
+  end
+  if vary then
+    local pitches = {0.85, 0.92, 1, 1, 1.08, 1.15}
+    soundtable[sound]:setPitch(pitches[love.math.random(1, 6)])
+  end
+  love.audio.play(soundtable[sound])
 end

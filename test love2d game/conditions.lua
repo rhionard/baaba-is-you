@@ -54,6 +54,9 @@ condf["on"] = function(id, args, p)
   if id == "icon" then
     return false
   end
+  if is_particle(id) then
+    return false
+  end
     local obj = Objects[id]
     local done = 0
 
@@ -238,6 +241,47 @@ condf["nextto"] = function(id, args, p)
   return done == #args
 end
 
+condf["facing"] = function(id, args, p)
+  if id == "icon" then
+    return false
+  end
+  local obj = Objects[id]
+
+  local done = 0
+
+  local results = {}
+
+  for i, j in ipairs(Objects) do
+    if id ~= j.id then
+
+      local xdiff = j.tilex - obj.tilex
+      local ydiff = j.tiley - obj.tiley
+      local dir_val = dir_to_xy(obj.dir)
+      if xdiff == dir_val[1] and ydiff == dir_val[2] then
+        table.insert(results, j)
+      end
+    end
+  end
+
+  for i, j in ipairs(args) do
+    for n, m in ipairs(results) do
+      if m.id ~= id then
+        if matches(j, m) then
+          done = done + 1
+          break
+        end
+        if j == "none" then
+          return false
+        end
+      end
+    end
+    if j == "none" then
+      done = done + 1
+    end
+  end
+  return done == #args
+end
+
 condf["without"] = function(id, args, p)
   local done = 0
 
@@ -365,10 +409,31 @@ end
 
 condf["contains"] = function(id, args, p)
   local name = ""
+  local unname = ""
   if id ~= "icon" then
     name = realname(Objects[id].name)
+    unname = Objects[id].name
   else
-    name = currenticon
+    name = realname(currenticon)
+    unname = currenticon
+  end
+  if name == "what" then
+    name = "?"
+  end
+  if unname == "calendar" then
+    local m = true
+    for i, j in ipairs(args) do
+      if not string.match(name, j) then
+        m = false
+        break
+      end
+    end
+    if m then
+      return true
+    end
+
+    name = tostring(os.date("*t",os.time()).day)
+
   end
   for i, j in ipairs(args) do
     if not string.match(name, j) then

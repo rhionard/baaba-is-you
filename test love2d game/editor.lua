@@ -54,7 +54,7 @@ function delobject (x,y)
     end
   end
   if deleted then
-    love.audio.play(love.audio.newSource("sound/editordelete.wav","static"))
+    playsfx("editordelete")
   end
 
   update_editor_tiling()
@@ -80,7 +80,7 @@ function draweditor()
 
    if(t ~= nil) and (t[c.color[2]] ~= nil)then
      love.graphics.setColor(t[c.color[2]])
-     if c._active == false then
+     if c.lock then
        local a1 = { t[c.color[2]][1] * 0.5, t[c.color[2]][2] * 0.5, t[c.color[2]][3] * 0.5}
        love.graphics.setColor(a1)
      end
@@ -131,13 +131,18 @@ function draweditor()
      local date = os.date("*t",os.time()).day
      love.graphics.draw(love.graphics.newImage("sprite/calendarnumbers/c" .. tostring(date) .. ".png"),c.x  + x_offset,c.y  + y_offset,0,c.size * (tilesize / 24))
 
+   elseif c.num ~= nil then
+     love.graphics.draw(love.graphics.newImage("sprite/calendarnumbers/c" .. tostring(c.num) .. ".png"),c.x  + x_offset - 3,c.y  + y_offset - 1 ,0,c.size * (tilesize / 24))
+
    end
 
   end
 
+
   if heldtile ~= "" then
       -- copied from main.lua
      local heldsprite = heldtile
+
      local place_x, place_y = math.floor(love.mouse.getX()/  tilesize  ) * tilesize, math.floor(love.mouse.getY()/  tilesize  ) * tilesize
      if place_x > 0 and place_x < (levelx - 1) * tilesize and place_y > 0 and place_y < levely * tilesize then
        local heldrotate = getspritevalues(heldtile).rotate
@@ -176,22 +181,46 @@ function draweditor()
 
    end
 
+
+   if eyedrop then
+      local place_x, place_y = math.floor(love.mouse.getX()/  tilesize  ) * tilesize, math.floor(love.mouse.getY()/  tilesize  ) * tilesize
+      if place_x > 0 and place_x < (levelx - 1) * tilesize and place_y > 0 and place_y < levely * tilesize then
+
+
+       local tcolor = {3,1}
+        local t = palettecolors[tcolor[1]]
+
+        if(t ~= nil) and (t[tcolor[2]] ~= nil)then
+          love.graphics.setColor(t[tcolor[2]][1], t[tcolor[2]][2], t[tcolor[2]][3], 0.5)
+
+        end
+
+
+
+          local csprite = love.graphics.newImage("sprite/eyedrop.png")
+
+          love.graphics.draw(csprite,place_x  + x_offset,place_y + y_offset,0,(tilesize / 24))
+
+      end
+
+    end
+
 end
 
-idtotal = 0
-
 function loadlevel()
-
+  game_paused = false
+  chooserule = {}
+  oldchooserule = {}
   menu_state = "editor_test"
   ineditor = false
   filecount = 0
   fileimages = {}
   undolist = {}
   currenticon = "baaba"
+  idtotal = 0
 
   DBG = tostring(#editor_curr_objects)
   afterframeone = nil
-  idtotal = 0
 
   for i, j in ipairs(editor_curr_objects) do
 
@@ -247,7 +276,75 @@ function loadlevel()
       ingroup[group.id] = {"group"}
     end
   end
-  startproperties()
+  startproperties(true)
+
+  for i, j in ipairs(Objects) do
+    dotiling(j)
+    updatesprite(j)
+  end
+
+  if not music:isPlaying() then
+    music:play()
+    music:setLooping(true)
+  end
+
+end
+
+idtotal = 0
+
+function loadlevelstuff()
+  chooserule = {}
+  oldchooserule = {}
+  ineditor = false
+  filecount = 0
+  fileimages = {}
+  undolist = {}
+  currenticon = "baaba"
+  idtotal = 0
+
+
+  for i, j in ipairs(Objects) do
+
+    if j.lock ~= nil then
+      for a, b in ipairs({"left","up","right","down"}) do
+
+        local superbreak = false
+
+        for c, d in ipairs(gettiles(b, j.tilex, j.tiley, 1)) do
+          if d.levelinside ~= nil and levelcompleted(d.levelinside) then
+            j.lock = nil
+            superbreak = true
+            break
+          end
+        end
+
+        if superbreak then
+          break
+        end
+
+      end
+    end
+
+  end
+  parse_text()
+
+  local cb = love.system.getClipboardText()
+  for a, b in ipairs(rules) do
+    if b[3] == "uncopy" and (matches(b[1], cb, true) or (matches(b[1], "text_" .. cb, true) and is_prop(cb))) then
+      love.system.setClipboardText("oops!")
+    end
+  end
+
+  ingroup = {}
+  local groups = objectswithproperty("group")
+  for i,group in ipairs(groups) do
+    if ingroup[group.id] then
+      table.insert(ingroup[group.id], "group")
+    else
+      ingroup[group.id] = {"group"}
+    end
+  end
+  startproperties(true)
 
   for i, j in ipairs(Objects) do
     dotiling(j)
@@ -262,6 +359,7 @@ function loadlevel()
 end
 
 function dielevel()
+  killparticles()
   menu_state = "editor"
   ineditor = true
   Objects = {}
@@ -280,6 +378,9 @@ function dielevel()
 end
 
 function handletilething()
+  if selected_obj ~= nil then
+    return
+  end
   local width, height = love.graphics.getDimensions()
 
     if (love.mouse.getX() > (width - 100) and love.mouse.getY() > (height - 100) and love.mouse.getX() < (width - 20) and love.mouse.getY() < (height - 40)) then return end
@@ -290,7 +391,7 @@ function handletilething()
       for i2,c in ipairs(buttons) do
        if love.mouse.getX() > c.x1 and love.mouse.getX() < c.x1 + (3.3 * c.buttonsize) and  love.mouse.getY() > c.y1 and love.mouse.getY() < c.y1 + (3.3 * c.buttonsize) then
          if heldtile ~= c.buttonname then
-           love.audio.play(love.audio.newSource("sound/select.wav","static"))
+           playsfx("select")
          end
        heldtile = c.buttonname
        --love.window.setPosition(4,6)
@@ -300,7 +401,7 @@ function handletilething()
       for i2, c in ipairs(tab_buttons) do
         if love.mouse.getX() > c.x and love.mouse.getX() < c.x + 36 and  love.mouse.getY() > c.y and love.mouse.getY() < c.y + 12 then
           if curr_tab ~= c.name then
-            love.audio.play(love.audio.newSource("sound/select.wav","static"))
+            playsfx("select")
           end
           curr_tab = c.name
           initui()
@@ -322,7 +423,7 @@ function handletilething()
       onbuton = false
     end
     if(onbutton==false) then
-      if(love.keyboard.isDown("m")) then
+      if(love.keyboard.isDown("m") and string.sub(heldtile, 1, 5) == "text_" and string.sub(heldtile, 1, 10) ~= "text_text_") then
       metaval = 1
       end
     --getobject()
@@ -336,7 +437,7 @@ function handletilething()
     local obx, oby = math.floor(love.mouse.getX()/  tilesize  ),math.floor(love.mouse.getY()/  tilesize  )
      if obx > 0 and obx < (levelx - 1) and oby > 0 and oby < levely and not love.mouse.isDown(2) then
        if dot then
-         love.audio.play(love.audio.newSource("sound/place.wav","static"))
+         playsfx("place")
          if metaval ~= 1 then
            addobject(heldtile,obx,oby, helddir )
          else
@@ -447,7 +548,7 @@ function make_tabs()
     {"text_red","text_orange","text_yellow","text_gellow","text_green","text_blue","text_purple","text_pink"},
     {"text_you2","text_select","text_auto","text_power","text_powered"},
     {"text_meta","text_unmeta","text_what","text_small","text_big","text_place","text_placed","text_active","text_burn","text_hop","text_collect","text_old","text_reset","text_set"},
-    {"text_heavy","text_oneway","text_link","text_path","text_only","text_random","text_xnopyt"},
+    {"text_heavy","text_oneway","text_link","text_path","text_only","text_random","text_poof"},
     {},
     {"text_text","text_all","text_group"}
   }
@@ -455,7 +556,7 @@ function make_tabs()
   editor_tabs.advanced = {
     {"clipboard","text_clipboard","icon","text_icon","this","text_this","file","text_file"},
     {"text_no","text_often","text_seldom","text_lonely","text_powered","text_power","text_yes"},
-    {"text_on","text_near","text_feeling","text_without","text_above","text_below","text_but","text_starts","text_contains","text_ends"},
+    {"text_on","text_near","text_feeling","text_without","text_above","text_below","text_but","text_starts","text_contains","text_ends","text_facing"},
     {"text","text_text","group","text_group","level","text_level","text_place","text_placed","text_active"},
     {"text_textof","choose","text_choose", "stack", "text_stack"}
   }
@@ -472,7 +573,7 @@ function make_tabs()
      "clipboard", "icon", "this"},{"text_uncopy","text_textof","text_but","mountain","text_mountain","correct","text_correct","horse","text_horse","battery","text_battery","staple","text_staple", "text_upsilon"},
     {"incorrect", "text_incorrect","text_heavy","text_oneway","text_link","text_reset","text_set","text_big","text_random", "axe","text_axe","pick","text_pick","log"},{"text_log","text_starts","text_contains","text_ends",
     "text_path","sqrt9","text_sqrt9", "text_file","mathdotsinxword","text_mathdotsinxword","text_dollars",
-    "3dollars","text_3dollars","text_ch"},{"lemon","text_lemon","prize","text_prize","text_xnopyt","jsdhgous","text_jsdhgous",
+    "3dollars","text_3dollars","text_ch"},{"lemon","text_lemon","prize","text_prize","text_poof","jsdhgous","text_jsdhgous",
     "cucucu","text_cucucu","wheel","text_wheel","file","choose","text_choose"},
     {"abba","text_abba","text_none","text_yes","text_the", "stack", "text_stack"}
   }
@@ -505,11 +606,16 @@ function update_editor_tiling()
           local mult = 1
 
           for k, m in ipairs(l) do
+            local tile_here = false
             for n, o in ipairs(alltilehere_editor(j.tilex + m[1], j.tiley + m[2])) do
               if o.name == j.name or o.name == "level" then
                 tileval = tileval + mult
+                tile_here = true
                 break
               end
+            end
+            if not tile_here and (j.tilex + m[1] < 1 or j.tiley + m[2] < 1 or j.tilex + m[1] > 1 * (levelx - 2) or j.tiley + m[2] > 1 * (levely - 1)) then
+              tileval = tileval + mult
             end
             mult = mult * 2
           end
@@ -520,4 +626,128 @@ function update_editor_tiling()
         end
 
   end
+end
+
+function editor_swap()
+
+    local heldobj = heldtile .. ""
+    if string.sub(heldobj, 1, 5) == "text_" then
+      heldobj = string.sub(heldobj, 6)
+    end
+    --DBG = heldobj
+    if not getspritevalues(heldobj).nope then
+      if heldobj ~= heldtile then
+        heldtile = heldobj
+      else
+        heldtile = "text_" .. heldtile
+      end
+    end
+
+end
+
+function editor_eyedrop()
+  for i5,c5 in ipairs(editor_curr_objects) do
+   if(dist(c5.x+tilesize/2,c5.y+tilesize/2,love.mouse.getX(),love.mouse.getY()) < tilesize/1.5) then
+   --c5.active = false
+
+
+       heldtile = c5.name
+       break
+
+   end
+  end
+end
+
+function editor_eyedropping()
+  eyedrop = "eye"
+  heldtile = ""
+end
+
+function editor_leveldropping()
+  eyedrop = "level"
+  heldtile = ""
+end
+
+function editor_leveldrop()
+
+        local delthese = remove_popups()
+        for i, j in ipairs(delthese) do
+          table.remove(menu_buttons, j)
+        end
+
+        local level_toadd = nil
+        for i, j in ipairs(editor_curr_objects) do
+
+          if j.tilex == math.floor(love.mouse.getX()/tilesize) and j.tiley == math.floor(love.mouse.getY()/tilesize) then
+            level_toadd = i
+          end
+        end
+        if level_toadd ~= nil then
+          selected_obj = level_toadd
+          local already = editor_curr_objects[selected_obj].levelinside or ""
+          addpopup(love.mouse.getX(), love.mouse.getY(), {
+            {
+              dx = 5,
+              dy = 10,
+              sizex = 25,
+              sizey = 25,
+              color = {0.1, 0.1, 0.2, 1, 1, 1},
+              text = "<",
+              func = function(b)
+                local old = editor_curr_objects[selected_obj].num or 0
+                editor_curr_objects[selected_obj].num = math.max(0, old - 1)
+              end
+            },
+            {
+              dx = 35,
+              dy = 10,
+              sizex = 25,
+              sizey = 25,
+              color = {0.1, 0.1, 0.2, 1, 1, 1},
+              text = "locked",
+              func = function(b)
+                if editor_curr_objects[selected_obj].lock == nil then
+                  editor_curr_objects[selected_obj].lock = "YES"
+                else
+                  editor_curr_objects[selected_obj].lock = nil
+                end
+              end,
+              drawfunc = function(b)
+                b.color = {0.1, 0.1, 0.2, 1, 1, 1}
+                if editor_curr_objects[selected_obj].lock then
+                  b.color = {0.5, 0.5, 0.63, 1, 1, 1}
+                end
+              end
+            },
+            {
+              dx = 70,
+              dy = 10,
+              sizex = 25,
+              sizey = 25,
+              color = {0.1, 0.1, 0.2, 1, 1, 1},
+              text = ">",
+              func = function(b)
+                local old = editor_curr_objects[selected_obj].num or 0
+                editor_curr_objects[selected_obj].num = math.min(old + 1, 31)
+              end
+            },
+            {
+              dx = 10,
+              dy = 60,
+              sizex = 80,
+              sizey = 30,
+              color = {0.1, 0.1, 0.2, 1, 1, 1},
+              text = already,
+              func = function(b)
+                b.edit = not b.edit
+              end,
+              drawfunc = function(b)
+                b.color = {0.1, 0.1, 0.2, 1, 1, 1}
+                if b.edit then
+                  b.color = {0.05, 0.05, 0.13, 1, 1, 1}
+                end
+              end
+            }
+          }, 100, 100)
+        end
 end

@@ -10,7 +10,7 @@ local enabledebug = false
  winning = false
  local redraw_objects = true
 
-
+map_level = {}
 
 function love.load()
   love.filesystem.createDirectory("levels")
@@ -39,7 +39,8 @@ function love.load()
   writethese = {}
   hideui = true
   levelmusic = 1
-  musiclist = {"default", "baaba", "the song ever", "burning", "nothing", "demo", "flyly", "maptemp", "whattimeisnt"}
+  musiclist = {"default", "baaba", "submar", "the song ever", "burning", "nothing", "demo", "flyly", "maptemp", "rocket", "whattimeisnt"}
+  musictable = {}
   Palleteimage = love.graphics.newImage("sprite/testpalette.png")
   textmeta = love.graphics.newImage("sprite/textMeta.png")
   blockerimg = love.graphics.newImage("sprite/blocker.png")
@@ -49,12 +50,12 @@ function love.load()
   miscsprites["note"] = love.graphics.newImage("graphics/note.png")
   miscsprites["logo"] = love.graphics.newImage("graphics/baaba_logo.png")
   miscsprites["dots"] = love.graphics.newImage("graphics/uhh.png")
-  all_palettes = {"testpalette", "brighter", "AAAAA", "table", "spaceeee", "oooh", "orang", "reswapped", "burning", "yelly","reddy"}
+  all_palettes = {"testpalette", "brighter", "AAAAA", "table", "spaceeee", "oooh", "orang", "reswapped", "burning", "yelly","reddy", "testpalette-beta"}
   palette_id = 1
   loop_detector = 0
   theloop = false
 
-  stupid_music_timer = -1
+
   the_level_is_gone = false
   --leveldata = "testaaa={"
   heldtile = ""
@@ -69,6 +70,9 @@ function love.load()
  rules = {}
  string_prop_list = {}
  currenticon = "baaba"
+
+ shake = 0
+ shake_amount = 0
 
 
  changeicon = love.window.setIcon(love.image.newImageData("sprite/baaba-right.png"))
@@ -89,8 +93,8 @@ images=
 { "clipboard", "icon", "this","monster","text_monster","monitor","text_monitor","question","text_question","text_uncopy","text_textof","text_but","mountain","text_mountain","correct","text_correct","horse","text_horse","battery","text_battery","staple","text_staple", "text_upsilon"},
 {"incorrect", "text_incorrect","text_heavy","text_oneway","text_link","text_shift","text_reset","text_set","text_big","text_random", "axe","text_axe","pick","text_pick","sword","text_sword","log","text_log","text_feeling","text_without","text_starts","text_contains","text_ends"},
 {"text_path","text_left","text_down","text_right","text_0","text_1","text_2","text_3","text_4","text_5","text_6","text_7","text_8","text_9","hand","text_hand","sqrt9","text_sqrt9","text_tele", "text_file","mathdotsinxword","text_mathdotsinxword","text_dollars"},
-{"3dollars","text_3dollars","text_pink","text_ba","ring","text_ring","text_ch","chair","text_chair","lemon","text_lemon","prize","text_prize","car","text_car","text_xnopyt","text_hide","jsdhgous","text_jsdhgous","seastar","text_seastar","lock","text_lock"},
-{"cucucu","text_cucucu","wheel","text_wheel","file","choose","text_choose","abba","text_abba","text_none","text_yes","text_the", "stack", "text_stack"} }
+{"3dollars","text_3dollars","text_pink","text_ba","ring","text_ring","text_ch","chair","text_chair","lemon","text_lemon","prize","text_prize","car","text_car","text_poof","text_hide","jsdhgous","text_jsdhgous","seastar","text_seastar","lock","text_lock"},
+{"cucucu","text_cucucu","wheel","text_wheel","file","choose","text_choose","abba","text_abba","text_none","text_yes","text_the", "stack", "text_stack", "text_particle", "text_facing"} }
 
 require "ui"
 require "tool"
@@ -101,6 +105,7 @@ require "move"
 require "palette"
 require "editor"
 require "undo"
+require "effect"
 
   monitor_things = {
     burn = "burn",
@@ -139,13 +144,23 @@ table.insert(baserules,{"cursor","is","select"})
 table.insert(baserules,{"line","is","path"})
 --table.insert(baserules,{"57","is","defeat",{}})
 love.keyboard.setKeyRepeat(true)
-menu_load()
+menu_load("main")
 make_prop_list()
 end
-
+is_map_level = false
 levelhandle = nil
+oldchooserule = {}
 function passturn()
 
+  if is_map_level and #map_level > 0 then
+    map_turn = true
+
+    --for i, j in ipairs(map_level[#map_level]) do
+  end
+  passturn_func()
+end
+
+function passturn_func()
   levelhandle = nil
 
   if #undolist > 0 and #undolist[#undolist] == 0 then
@@ -153,32 +168,34 @@ function passturn()
   end
 
   table.insert(undolist, {})
+
+  if chooserule ~= oldchooserule then
+    add_undo("choose", {c = oldchooserule})
+    oldchooserule = chooserule
+  end
   loop_detector = 0
   the_level_is_gone = false
 
   active = false
-
    for i,unit in ipairs(Objects) do
-     local gsv = getspritevalues(unit.name).rotate
-     if(gsv == 4) or (gsv == 6) and type(unit.dir) == "string" then
-       unit.sprite =  unit.name .. "-" .. unit.dir
-       --unit.color = getspritevalues(unit.name).color
-     end
-     --[[unit.tilex = math.floor(unit.x/tilesize)
-     unit.tiley = math.floor(unit.y/tilesize)]]
-     unit.small = 1
-     unit.sleep = false
-     unit.hide = nil
-     unit.old = false
-     unit.float = false
-     unit.blocked = false
-     unit.from_x = unit.x
-     unit.from_y = unit.y
-     unit.to_x = unit.x
-     unit.to_y = unit.y
+       local gsv = getspritevalues(unit.name).rotate
+       if(gsv == 4) or (gsv == 6) and type(unit.dir) == "string" then
+         unit.sprite =  unit.name .. "-" .. unit.dir
+         --unit.color = getspritevalues(unit.name).color
+       end
+       --[[unit.tilex = math.floor(unit.x/tilesize)
+       unit.tiley = math.floor(unit.y/tilesize)]]
+       unit.small = 1
+       unit.sleep = false
+       unit.hide = nil
+       unit.old = false
+       unit.float = false
+       unit.blocked = false
+       unit.to_x = unit.x
+       unit.to_y = unit.y
    end
 
-   chooserule = ""
+   --chooserule = ""
 
 
    local cb = love.system.getClipboardText()
@@ -221,6 +238,11 @@ function passturn()
 
     testmove()
     parse_text()
+    for a, b in ipairs(Objects) do
+      if b.oldactive == false and b._active == true then
+        particle("active", b.tilex * tilesize, b.tiley * tilesize, love.math.random(3, 5), {color = b.color}, true)
+      end
+    end
 
     for i, j in ipairs(Objects) do
       j.small = 1
@@ -240,8 +262,10 @@ function passturn()
       end
     end
 
-    findproperties()
-
+    local exit = findproperties()
+    if exit == 0 then
+      return
+    end
 
     for i, j in ipairs(Objects) do
       dotiling(j)
@@ -260,6 +284,7 @@ function passturn()
     for a, b in ipairs(Objects) do
       if b.oldactive == false and b._active == true then
         rulesound = true
+        --particle("active", b.to_x, b.to_y, love.math.random(3, 5), {color = b.color}, true)
       end
 
       if b.oldactive == true and b._active == false then
@@ -270,9 +295,9 @@ function passturn()
     end
 
     if rulesound then
-      love.audio.play(love.audio.newSource("sound/rulemade.wav","static"))
+      playsfx("rulemade", true)
     elseif unrulesound then
-      love.audio.play(love.audio.newSource("sound/unrule.wav","static"))
+      playsfx("unrule", true)
     end
 
     if #getplayers() == 0 then
@@ -285,7 +310,7 @@ function passturn()
     if wewinning then
       wintimer = 5
       music:pause()
-      love.audio.play(love.audio.newSource("sound/victoryr.wav","static"))
+      playsfx("victoryr")
       if menu_state ~= "editor_test" then
         if (love.filesystem.getInfo("progress/levels.txt") == nil) then
           love.filesystem.write("progress/levels.txt","cleared=" .. levelname .. "\n")
@@ -295,25 +320,32 @@ function passturn()
       end
       return
     end
+
+    effects(true)
 end
 
 
 function dotiling(j)
 
   j.tiling = nil
-    if getspritevalues(j.name).rotate == 5 then
+    if getspritevalues(j.name).rotate == 5 and j.size == 1 then
 
 
       local tileval = 0
       local l = {{1, 0}, {0, -1}, {-1, 0}, {0, 1}}
       local mult = 1
-
+      local tile_here = false
       for k, m in ipairs(l) do
+        local tile_here = false
         for n, o in ipairs(alltilehere(j.tilex + m[1], j.tiley + m[2])) do
           if o.name == j.name or o.name == "level" then
             tileval = tileval + mult
+            tile_here = true
             break
           end
+        end
+        if not tile_here and (j.tilex + m[1] < 1 or j.tiley + m[2] < 1 or j.tilex + m[1] > 1 * (levelx - 2) or j.tiley + m[2] > 1 * (levely - 1)) then
+          tileval = tileval + mult
         end
         mult = mult * 2
       end
@@ -346,11 +378,16 @@ function alltilehere_editor(x,y)
 end
 
 candoturn = false
-
+selected_obj = nil
 function love.keypressed(key, scancode, isrepeat)
 --function love.update(key, scancode, isrepeat)
-
-if(editlevelname == false)then
+  local dontmessupeverything = editlevelname
+for i, j in ipairs(menu_buttons) do
+  if j.edit then
+    dontmessupeverything = true
+  end
+end
+if not dontmessupeverything then
 
 
   if ineditor then
@@ -370,13 +407,29 @@ if(editlevelname == false)then
 
       palette_id = (palette_id) % (#all_palettes) + 1
       loadPalette(all_palettes[palette_id])
-
-      initui()
     end
     if key == "n" then
       levelmusic = (levelmusic) % (#musiclist) + 1
       playmusic(musiclist[levelmusic])
-      stupid_music_timer = 5
+
+      notification.timer = 5
+        if not mutemusic then
+          notification.sprite = miscsprites["note"]
+          notification.sprite_color = {7, 5}
+          notification.text = musiclist[levelmusic]
+          notification.color = {7, 5}
+          notification.size = 1
+        else
+          notification.sprite = miscsprites["dots"]
+          notification.sprite_color = {1, 2}
+          notification.text = "what?"
+          notification.color = {7, 5}
+          notification.size = 2
+        end
+
+    end
+    if key == "h" then
+      editor_leveldrop()
     end
     if key == "tab" then
       hideui = not hideui
@@ -408,52 +461,48 @@ if(editlevelname == false)then
       helddir = key
     end
     if key == "o" then
-      local heldobj = heldtile .. ""
-      if string.sub(heldobj, 1, 5) == "text_" then
-        heldobj = string.sub(heldobj, 6)
-      end
-      --DBG = heldobj
-      if not getspritevalues(heldobj).nope then
-        if heldobj ~= heldtile then
-          heldtile = heldobj
-        else
-          heldtile = "text_" .. heldtile
-        end
-      end
+      editor_swap()
 
     end
     if key == "i" then
-      for i5,c5 in ipairs(editor_curr_objects) do
-       if(dist(c5.x+tilesize/2,c5.y+tilesize/2,love.mouse.getX(),love.mouse.getY()) < tilesize/1.5) then
-       --c5.active = false
-
-
-           heldtile = c5.name
-           break
-
-       end
-      end
+      editor_eyedrop()
     end
 
   else
-    if (key == "r") then
+    if not game_paused then
+      if (key == "r") then
 
-      if gamestate == "editor_test" then
-        Objects = {}
-        wewinning = false
-        theloop = false
-        loadlevel()
-      elseif gamestate == "playing" then
-        Objects = {}
-        loadlevel()
-        gotogame()
+        if gamestate == "editor_test" then
+          Objects = {}
+          wewinning = false
+          theloop = false
+          loadlevel()
+        elseif gamestate == "playing" then
+          Objects = {}
+          loadlevel()
+          gotogame()
 
-        x_offset = (love.graphics.getWidth() - levelx * tilesize) / 2
-        y_offset = (love.graphics.getHeight() - (levely + 1) * tilesize) / 2
+          x_offset = (love.graphics.getWidth() - levelx * tilesize) / 2
+          y_offset = (love.graphics.getHeight() - (levely + 1) * tilesize) / 2
+          playsfx("whoops" .. love.math.random(1, 3))
+          bg_particles("dot")
+          shake = 0.4
+          shake_amount = 1.5
+        end
+
+      end
+      if key == "c" then
+        dochoose()
+        passturn()
       end
     end
-    if key == "c" then
-      dochoose()
+
+    if gamestate == "playing" and key == "p" or key == "escape" then
+      if not game_paused then
+        pause()
+      else
+        unpause()
+      end
     end
   end
 
@@ -471,7 +520,21 @@ end
       dolevelname()
     end
   end
-
+  if (key == "backspace")then
+    for i, j in ipairs(menu_buttons) do
+      if j.edit and #j.text > 0 then
+        j.text = string.sub(j.text, 1, string.len(j.text) - 1)
+      end
+    end
+  end
+  if (key == "return") then
+    for i, j in ipairs(menu_buttons) do
+      if j.edit then
+        editor_curr_objects[selected_obj].levelinside = j.text
+        j.edit = nil
+      end
+    end
+  end
 end
 function updatesprite(c)
 
@@ -533,6 +596,145 @@ function updatesprite(c)
 
 end
 
+function draw_objs(objs)
+  for i,c in ipairs(objs) do
+
+    if c.have ~= nil then
+      local ccolor = getspritevalues(c.have[1]).color
+      love.graphics.setColor(palettecolors[ccolor[1]][ccolor[2]])
+      love.graphics.draw(c.have[2],c.x + x_offset + c.size * (tilesize / 4),c.y + y_offset + c.size * (tilesize / 4),0,c.size * (tilesize / 48))
+    end
+
+    local t = palettecolors[c.color[1]]
+    if(t ~= nil) and (t[c.color[2]] ~= nil)then
+     love.graphics.setColor(t[c.color[2]])
+       if c._active == false or c.lock ~= nil or (c.levelinside ~= nil and levelcompleted(c.levelinside)) then
+         local a1 = { t[c.color[2]][1] * 0.46, t[c.color[2]][2] * 0.46, t[c.color[2]][3] * 0.54}
+         love.graphics.setColor(a1)
+       end
+     end
+
+     if(c.active == true) and (c.hide ~= true)then
+
+       local cx = c.x
+       local cy = c.y
+
+       if c.float then
+         cy = cy - (10 - math.sin(love.timer.getTime()) * 7) * c.size
+       end
+
+
+       if c.size > 1 then
+         cx = cx - tilesize / 2
+         cy = cy - tilesize
+         if c.size > 2 then
+           local multval = 2
+           for asdf = 1, 7 do
+             if c.size > multval then
+               cx = cx - tilesize * multval / 2
+               cy = cy - tilesize * multval
+             else
+               break
+             end
+             multval = multval * 2
+           end
+         end
+       end
+
+       if c.size < 1 then
+         cx = cx + tilesize / 4
+         cy = cy + tilesize / 2
+         if c.size < 0.5 then
+           local multval = 0.5
+           for asdf = 1, 7 do
+             if c.size < multval then
+               cx = cx + tilesize * multval / 4
+               cy = cy + tilesize * multval / 2
+             else
+               break
+             end
+             multval = multval / 2
+           end
+         end
+       end
+       --[[
+       if c.size < 1 then
+         cx = cx + tilesize / 4
+         cy = cy + tilesize / 2
+       end
+       if c.size < 0.5 then
+         cx = cx + tilesize / 8
+         cy = cy + tilesize / 4
+       end
+
+       if c.size < 0.25 then
+         cx = cx + tilesize / 16
+         cy = cy + tilesize / 8
+       end]]
+
+       if c.file == nil then
+         local xchange = -((c.sprite:getWidth() - 24) / 2) * (tilesize / 24)
+         local ychange = -((c.sprite:getHeight() - 24) / 2) * (tilesize / 24)
+         love.graphics.draw(c.sprite,cx + x_offset + xchange,cy + y_offset + ychange,0,c.size * (tilesize / 24))
+       else
+         love.graphics.draw(c.sprite,cx + x_offset,cy + y_offset,0,c.size * (tilesize / 24) * (24 / c.sprite:getHeight()))
+       end
+
+         --love.graphics.draw(love.graphics.newImage("sprite/" .. c.sprite .. ".png") or love.graphics.newImage("sprite/error.png"),c.x,c.y,0,c.size)
+
+       love.graphics.setColor(1,1,1)
+     end
+   --love.graphics.print(c.rule[1] or "",c.x,c.y)
+   --love.graphics.print(c.meta,c.x+c.size*15,c.y+c.size*15)
+ --  love.graphics.print(math.floor(dist(c.x+c.size/2,c.y+c.size/2,love.mouse.getX(),love.mouse.getY())),c.x+c.size/4,c.y+10)
+     love.graphics.setColor(1,0,0)
+ --love.graphics.print()
+     if string.sub(c.name,1,10) == "text_text_" and c.file == nil then
+       love.graphics.setColor(1,0,0.5)
+       love.graphics.draw(textmeta,c.x + x_offset,c.y + y_offset,0,c.size  * (tilesize / 24))
+     end
+     if c.blocked then
+       love.graphics.setColor(palettecolors[1][1])
+       love.graphics.draw(blockerimg,c.x + x_offset,c.y + y_offset,0,c.size  * (tilesize / 24))
+     end
+    --love.graphics.print(tostring(4),c.x,c.y)
+ --  love.graphics.print(tostring(to),300,300)
+   --string.pack("j",3)
+     if c.name == "clock" then
+       local hour = os.date("*t",os.time()).hour
+       if(tonumber(hour) == 0)then
+         hour = "12"
+       end
+       if(string.len(hour) == 1)then
+         hour = "0" .. hour
+       end
+       if(tonumber(hour) > 12)then
+         hour = tostring(tonumber(hour) - 12)
+       end
+       local min = os.date("*t",os.time()).min
+       if(string.len(min) == 1)then
+         min = "0" .. min
+       end
+       if c.size > 0.6 then
+         love.graphics.print(hour .. ":" .. min,c.x + x_offset,c.y+tilesize/3+1 + y_offset,0,1.3)
+       elseif c.size > 0.3 then
+         love.graphics.print(hour .. ":" .. min,c.x+4 + x_offset,c.y+tilesize/3+6 + y_offset,0,0.7)
+       elseif c.size > 0.1 then
+         love.graphics.print(hour .. ":" .. min,c.x+5 + x_offset,c.y+tilesize/3+1 + y_offset,0,0.4)
+       end
+     elseif c.name == "calendar" then
+       love.graphics.setColor(0,0,0)
+       local date = os.date("*t",os.time()).day
+       love.graphics.draw(love.graphics.newImage("sprite/calendarnumbers/c" .. tostring(date) .. ".png"),c.x  + x_offset,c.y  + y_offset,0,c.size * (tilesize / 24))
+
+     elseif c.num ~= nil and c.lock == nil then
+       love.graphics.draw(love.graphics.newImage("sprite/calendarnumbers/c" .. tostring(c.num) .. ".png"),c.x  + x_offset - 3,c.y  + y_offset - 1 ,0,c.size * (tilesize / 24))
+
+     end
+
+  end
+end
+
 
 function love.draw()
   if not love.window.hasFocus() then
@@ -542,153 +744,49 @@ function love.draw()
 
   if gamestate == "editor" or gamestate == "playing" then
 
-
-
+    local width, height = love.graphics.getDimensions()
+    local level_sizechange = false
+    love.graphics.push()
+    love.graphics.translate(math.cos(love.timer.getTime() * 47 + 543) * 10 * shake * shake_amount, math.sin(love.timer.getTime() * 37) * 7 * shake * shake_amount)
+    love.graphics.push()
+    if gamestate == "playing" and levelx <= 13 and levely <= 8 then
+      love.graphics.translate(-width, -height)
+      love.graphics.scale(1.5,1.5)
+      love.graphics.translate(width / 2, height / 2)
+    end
   drawborders()
 
 
 
     love.graphics.setBackgroundColor(palettecolors[1][5])
-   for i,c in ipairs(Objects) do
 
+   draw_objs(Objects)
 
+   if love.keyboard.isDown("m") and #map_level > 0 then
+     love.graphics.push()
+     love.graphics.scale(0.5, 0.5)
 
-     local t = palettecolors[c.color[1]]
-     if(t ~= nil) and (t[c.color[2]] ~= nil)then
-      love.graphics.setColor(t[c.color[2]])
-        if c._active == false or c.lock ~= nil then
-          local a1 = { t[c.color[2]][1] * 0.46, t[c.color[2]][2] * 0.46, t[c.color[2]][3] * 0.54}
-          love.graphics.setColor(a1)
-        end
-      end
-
-      if(c.active == true) and (c.hide ~= true)then
-
-        local cx = c.x
-        local cy = c.y
-
-        if c.float then
-          cy = cy - (10 - math.sin(love.timer.getTime()) * 7) * c.size
-        end
-
-
-        if c.size > 1 then
-          cx = cx - tilesize / 2
-          cy = cy - tilesize
-          if c.size > 2 then
-            local multval = 2
-            for asdf = 1, 7 do
-              if c.size > multval then
-                cx = cx - tilesize * multval / 2
-                cy = cy - tilesize * multval
-              else
-                break
-              end
-              multval = multval * 2
-            end
-          end
-        end
-
-        if c.size < 1 then
-          cx = cx + tilesize / 4
-          cy = cy + tilesize / 2
-          if c.size < 0.5 then
-            local multval = 0.5
-            for asdf = 1, 7 do
-              if c.size < multval then
-                cx = cx + tilesize * multval / 4
-                cy = cy + tilesize * multval / 2
-              else
-                break
-              end
-              multval = multval / 2
-            end
-          end
-        end
-        --[[
-        if c.size < 1 then
-          cx = cx + tilesize / 4
-          cy = cy + tilesize / 2
-        end
-        if c.size < 0.5 then
-          cx = cx + tilesize / 8
-          cy = cy + tilesize / 4
-        end
-
-        if c.size < 0.25 then
-          cx = cx + tilesize / 16
-          cy = cy + tilesize / 8
-        end]]
-
-        if c.file == nil then
-          local xchange = -((c.sprite:getWidth() - 24) / 2) * (tilesize / 24)
-          local ychange = -((c.sprite:getHeight() - 24) / 2) * (tilesize / 24)
-          love.graphics.draw(c.sprite,cx + x_offset + xchange,cy + y_offset + ychange,0,c.size * (tilesize / 24))
-        else
-          love.graphics.draw(c.sprite,cx + x_offset,cy + y_offset,0,c.size * (tilesize / 24) * (24 / c.sprite:getHeight()))
-        end
-
-          --love.graphics.draw(love.graphics.newImage("sprite/" .. c.sprite .. ".png") or love.graphics.newImage("sprite/error.png"),c.x,c.y,0,c.size)
-
-        love.graphics.setColor(1,1,1)
-      end
-    --love.graphics.print(c.rule[1] or "",c.x,c.y)
-    --love.graphics.print(c.meta,c.x+c.size*15,c.y+c.size*15)
-  --  love.graphics.print(math.floor(dist(c.x+c.size/2,c.y+c.size/2,love.mouse.getX(),love.mouse.getY())),c.x+c.size/4,c.y+10)
-      love.graphics.setColor(1,0,0)
-  --love.graphics.print()
-      if string.sub(c.name,1,10) == "text_text_" and c.file == nil then
-        love.graphics.setColor(1,0,0.5)
-        love.graphics.draw(textmeta,c.x + x_offset,c.y + y_offset,0,c.size  * (tilesize / 24))
-      end
-      if c.blocked then
-        love.graphics.setColor(palettecolors[1][1])
-        love.graphics.draw(blockerimg,c.x + x_offset,c.y + y_offset,0,c.size  * (tilesize / 24))
-      end
-     --love.graphics.print(tostring(4),c.x,c.y)
-  --  love.graphics.print(tostring(to),300,300)
-    --string.pack("j",3)
-      if c.name == "clock" then
-        local hour = os.date("*t",os.time()).hour
-        if(tonumber(hour) == 0)then
-          hour = "12"
-        end
-        if(string.len(hour) == 1)then
-          hour = "0" .. hour
-        end
-        if(tonumber(hour) > 12)then
-          hour = tostring(tonumber(hour) - 12)
-        end
-        local min = os.date("*t",os.time()).min
-        if(string.len(min) == 1)then
-          min = "0" .. min
-        end
-        if c.size > 0.6 then
-          love.graphics.print(hour .. ":" .. min,c.x + x_offset,c.y+tilesize/3+1 + y_offset,0,1.3)
-        elseif c.size > 0.3 then
-          love.graphics.print(hour .. ":" .. min,c.x+4 + x_offset,c.y+tilesize/3+6 + y_offset,0,0.7)
-        elseif c.size > 0.1 then
-          love.graphics.print(hour .. ":" .. min,c.x+5 + x_offset,c.y+tilesize/3+1 + y_offset,0,0.4)
-        end
-      elseif c.name == "calendar" then
-        love.graphics.setColor(0,0,0)
-        local date = os.date("*t",os.time()).day
-        love.graphics.draw(love.graphics.newImage("sprite/calendarnumbers/c" .. tostring(date) .. ".png"),c.x  + x_offset,c.y  + y_offset,0,c.size * (tilesize / 24))
-
-      elseif c.num ~= nil and c.lock == nil then
-        love.graphics.draw(love.graphics.newImage("sprite/calendarnumbers/c" .. tostring(c.num) .. ".png"),c.x  + x_offset - 3,c.y  + y_offset - 1 ,0,c.size * (tilesize / 24))
-
-      end
+     draw_objs(map_level[#map_level])
+     love.graphics.pop()
    end
+     particles:draw()
 
-   local width, height = love.graphics.getDimensions()
-   if wewinning then
-     love.graphics.setColor(1,1,1)
-    love.graphics.draw(love.graphics.newImage("graphics/you win.png"),width / 2 - 146,height / 2 - 90,0, 2 *math.sin((8 - wintimer) / 4 * math.pi / 2) )
-   end
+
+
+
    if theloop then
      love.graphics.setColor(1,1,1)
     love.graphics.draw(love.graphics.newImage("graphics/LOOP.png"),width / 2 - 146,height / 2 - 90,0,2)
+   end
+
+
+     love.graphics.pop()
+
+     love.graphics.pop()
+
+   if wewinning then
+     love.graphics.setColor(1,1,1)
+    love.graphics.draw(love.graphics.newImage("graphics/you win.png"),width / 2 - 146,height / 2 - 90,0, 2 *math.sin((8 - wintimer) / 4 * math.pi / 2) )
    end
 
    if levelhandle ~= nil then
@@ -707,8 +805,6 @@ function love.draw()
 
 
 
-           --DBG = love.timer.getFPS()
-           --love.graphics.print(DBG,0,300)
 
 
 
@@ -735,24 +831,14 @@ function love.draw()
              end
            end
 
-           if stupid_music_timer > 0 then
-             if not mutemusic then
-               local csprite = miscsprites["note"]
-               love.graphics.setColor(palettecolors[7][5][1] * 0.2, palettecolors[7][5][2] * 0.2, palettecolors[7][5][3] * 0.3)
-               love.graphics.rectangle("fill", width - 130 - string.len(musiclist[levelmusic]) * 10 - 5, 51, string.len(musiclist[levelmusic]) * 10 + 109, 134)
+           if notification.timer > 0 then
+               local csprite = notification.sprite
+               love.graphics.setColor(palettecolors[notification.color[1]][notification.color[2]][1] * 0.2, palettecolors[notification.color[1]][notification.color[2]][2] * 0.2, palettecolors[notification.color[1]][notification.color[2]][3] * 0.3)
+               love.graphics.rectangle("fill", width - 130 - string.len(notification.text) * 10 - 5, 51, string.len(notification.text) * 10 + 109, 134)
                love.graphics.rectangle("fill", width - 180, width - 151, 90, 90)
-               love.graphics.setColor(palettecolors[7][5][1] * 1.2, palettecolors[7][5][2] * 1.2, palettecolors[7][5][3] * 1.3)
-               love.graphics.draw(csprite,width - 80,95,0,1)
-               love.graphics.print(musiclist[levelmusic], width - 130 - string.len(musiclist[levelmusic]) * 10, 100, 0, 2)
-             else
-               local csprite = miscsprites["dots"]
-               love.graphics.setColor(palettecolors[7][5][1] * 0.2, palettecolors[7][5][2] * 0.2, palettecolors[7][5][3] * 0.3)
-               love.graphics.rectangle("fill", width - 130 - 5 * 10 - 5, 51, 5 * 10 + 109, 134)
-               love.graphics.rectangle("fill", width - 180, width - 151, 90, 90)
-               love.graphics.setColor(palettecolors[1][2][1], palettecolors[1][2][2], palettecolors[1][2][3] * 1.1)
-               love.graphics.draw(csprite,width - 80,95,0,1)
-               love.graphics.print("what?", width - 130 - 5 * 10, 100, 0, 2)
-             end
+               love.graphics.setColor(palettecolors[notification.sprite_color[1]][notification.sprite_color[2]][1] * 1.2, palettecolors[notification.sprite_color[1]][notification.sprite_color[2]][2] * 1.2, palettecolors[notification.color[1]][notification.color[2]][3] * 1.3)
+               love.graphics.draw(csprite,width - 80,95,0,notification.size)
+               love.graphics.print(notification.text, width - 130 - string.len(notification.text) * 10, 100, 0, 2)
            end
 
   end
@@ -764,21 +850,48 @@ function love.draw()
     love.graphics.draw(csprite,width / 2 - 191,155,0,2)
   end
 
+  if menu_state == "pause" then
+    love.graphics.setColor(1,1,1)
+    local width, height = love.graphics.getDimensions()
+    local ptext = ""
+    for i, j in ipairs(Parser.parsed_rules) do
+      ptext = ptext .. j[1] .. " "
+      for k, l in ipairs(j[4]) do
+        ptext = ptext .. l[1] .. " " .. tostring(l[2][1])
+      end
+      ptext = ptext  .. " " .. j[2] .. " " .. j[3] .. "\n"
+
+    end
+    love.graphics.printf(ptext, width / 2.7, height / 2, width / 4, "center")
+  end
+
+  --love.graphics.setColor(1,0,0)
+       --DBG = love.timer.getFPS()
+       --DBG = tostring(play_hover_sound and can_play_hover)
+      -- love.graphics.print(DBG,0,300)
+
 end
 
 delay = {left = 0, up = 0, down = 0, right = 0, space = 0, w = 0, a = 0, s = 0, d = 0, z = 0}
 turntimer = 0
 delay_timer = 0.15
+undo_delay_timer = 0.15
 turnkey = ""
-
+time_to_move = 0
 function love.update(delta)
 
   if not love.window.hasFocus() then
     return
   end
 
-  if stupid_music_timer > 0 then
-    stupid_music_timer = stupid_music_timer - delta
+  time_to_move = time_to_move + delta
+  if notification.timer > 0 then
+    notification.timer = notification.timer - delta
+  end
+  if shake > 0 then
+    shake = shake - delta
+  else
+    shake = 0
   end
 
   turntimer = turntimer + delta
@@ -788,15 +901,21 @@ function love.update(delta)
   doturn = false
 
     for i, j in ipairs(keys) do
-      if love.keyboard.isDown(j) and delay[j] <= 0 then
+      if love.keyboard.isDown(j) and delay[j] <= 0 and not game_paused then
         if j ~= "z" then
           doturn = true
           turnkey = j
+          delay[j] = delay_timer
         elseif not wewinning then
           undo()
+          undo_delay_timer = math.max(undo_delay_timer - delta, 0.05)
+          delay[j] = undo_delay_timer
         end
-        delay[j] = delay_timer
+
         break
+      end
+      if j == "z" and not love.keyboard.isDown(j) then
+        undo_delay_timer = 0.13
       end
     end
 
@@ -808,6 +927,9 @@ function love.update(delta)
         if not (menu_state == "editor_test") then
 
           if #leveltree >= 2 then
+            if #map_level > 0 then
+              table.remove(map_level, #map_level)
+            end
             enterlevel(leveltree[#leveltree - 1])
             table.remove(leveltree, #leveltree)
             table.remove(leveltree, #leveltree)
@@ -830,7 +952,7 @@ function love.update(delta)
       delay[i] = 0
     end
   end
-
+  particles:update(delta)
 
 
   if doturn and not (gamestate == "editor" and menu_state ~= "editor_test") then
@@ -844,18 +966,25 @@ function love.update(delta)
   end
   if #Objects > 0 then
     for i, c in ipairs(Objects) do
-      if c.to_x ~= nil and c.to_y ~= nil then
-        if c.frame >= 0.07 then
+
+      if #c.anim_stack > 0 then
+        local time = 0.07 / #c.anim_stack
+        c.anim_speed = math.min(time, c.anim_speed or 0.07)
+        local recent_anim = c.anim_stack[1]
+        if c.frame >= time then
           c.x = c.tilex * tilesize
           c.y = c.tiley * tilesize
-          c.to_x = nil
-          c.to_y = nil
           c.frame = 0
+          table.remove(c.anim_stack, 1)
         else
-          c.x = (c.to_x) * (c.frame / 0.07) + (c.from_x) * (1 - (c.frame / 0.07) )
-          c.y = (c.to_y) * (c.frame / 0.07) + (c.from_y) * (1 - (c.frame / 0.07) )
-          c.frame = math.min(c.frame + delta, 0.07)
+          c.x = (recent_anim[2][1]) * (c.frame / time) + (recent_anim[1][1]) * (1 - (c.frame / time) )
+          c.y = (recent_anim[2][2]) * (c.frame / time) + (recent_anim[1][2]) * (1 - (c.frame / time) )
+          c.frame = math.min(c.frame + delta, time)
         end
+      else
+        c.anim_speed = nil
+        c.x = c.tilex * tilesize
+        c.y = c.tiley * tilesize
       end
     end
   end
@@ -876,10 +1005,11 @@ function love.mousepressed(x, y, button, isTouch)
   end
 
 
+
   menu_press()
 
 
-  if not ineditor then
+  if not ineditor and not game_paused and not wewinning then
         for i, j in ipairs(Objects) do
           if j.tilex == math.floor(love.mouse.getX()/ tilesize ) and j.tiley == math.floor(love.mouse.getY()/ tilesize ) then
             turnkey = "No"
@@ -889,32 +1019,35 @@ function love.mousepressed(x, y, button, isTouch)
   end
 
 
+
 end
 
 function love.filedropped(file)
-	filename = file:getFilename():gsub("\\", "/")
-	ext = filename:match("%.%w+$")
+  if not game_paused and not wewinning then
+  	filename = file:getFilename():gsub("\\", "/")
+  	ext = filename:match("%.%w+$")
 
-	if ext == ".png" or ext == ".jpg" then
-		file:open("r")
-		fileData = file:read("data")
-		file_img = love.image.newImageData(fileData)
-		--file_img = love.graphics.newImage(img)
-    _, file_name = filename:match("(/.*/)(.+)(%.)")
-    turnkey = "Absolutely Not"
-    passturn()
-	end
-  if ext == ".wav" or ext == ".mp3" or ext == ".ogg" then
-		file:open("r")
-		fileData = file:read("data")
-		--file_img = love.graphics.newImage(img)
-    _, file_name = filename:match("(/.*/)(.+)(%.)")
-    turnkey = "Nope"
-    passturn()
-	end
+  	if ext == ".png" or ext == ".jpg" then
+  		file:open("r")
+  		fileData = file:read("data")
+  		file_img = love.image.newImageData(fileData)
+  		--file_img = love.graphics.newImage(img)
+      _, file_name = filename:match("(/.*/)(.+)(%.)")
+      turnkey = "Absolutely Not"
+      passturn()
+  	end
+    if ext == ".wav" or ext == ".mp3" or ext == ".ogg" then
+  		file:open("r")
+  		fileData = file:read("data")
+  		--file_img = love.graphics.newImage(img)
+      _, file_name = filename:match("(/.*/)(.+)(%.)")
+      turnkey = "Nope"
+      passturn()
+  	end
+  end
 end
 
-function makeobject(x,y,name,dir_,meta_,level_)
+function makeobject(x,y,name,dir_,meta_,level_,dontadd_)
     obj = {}
     obj.size = 1
     obj.tilex = x
@@ -938,6 +1071,12 @@ function makeobject(x,y,name,dir_,meta_,level_)
     obj.tiling = nil
     obj.orig_x = x
     obj.orig_y = y
+    obj.from_x = obj.x
+    obj.from_y = obj.y
+    obj.to_x = obj.x
+    obj.to_y = obj.y
+
+    obj.anim_stack = {}
     obj.small = 1
 
     idtotal = idtotal + 1
@@ -950,7 +1089,7 @@ function makeobject(x,y,name,dir_,meta_,level_)
     updatesprite(obj)
 
     table.insert(Objects,obj)
-    if afterframeone ~= nil then
+    if afterframeone ~= nil and dontadd_ == nil then
       add_undo("create", {the_id = obj.undo_id})
     end
 
@@ -1006,7 +1145,7 @@ function parse_text()
   end
   Parser:AddRules()
   -- oh boy debugging
-  --Parser:Debug()
+  Parser:Debug()
 end
 
 

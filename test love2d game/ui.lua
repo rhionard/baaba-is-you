@@ -8,9 +8,7 @@ function initui()
       for j,d in ipairs(c) do
         Button1={}
 
-        local t = palettecolors[getspritevalues(d).color[1]]
-        Button1.color1 =  t[getspritevalues(d).color[2]]
-        Button1.inactivecolor = {Button1.color1[1] * 0.45, Button1.color1[2] * 0.45, Button1.color1[3] * 0.55}
+        Button1.color1 =  getspritevalues(d).color
 
 
         --Button1.color1 = getspritevalues(d).color--{0.5,0.5,0.5}
@@ -39,10 +37,10 @@ function drawui()
 
 
 
-
-    local c1, c2, c3, cc = c.color1[1], c.color1[2], c.color1[3], c.color1
+      local t = palettecolors[c.color1[1]][c.color1[2]]
+    local c1, c2, c3, cc = t[1], t[2], t[3], t
     if hover then
-      c1, c2, c3, cc = c.inactivecolor[1], c.inactivecolor[2], c.inactivecolor[3], c.inactivecolor
+      c1, c2, c3, cc = c1 * 0.45, c2 * 0.45, c3 * 0.55, cc
     end
     love.graphics.setColor(c1 * 0.58,c2 * 0.58,c3 * 0.62)
     love.graphics.rectangle("fill",c.x1,c.y1,c.buttonsize*3.3,c.buttonsize*3.3)
@@ -90,14 +88,22 @@ current_textinput = ""
 levelname = ""
 editlevelname = false
 function love.textinput(text)
-  if (editlevelname == true) and (text ~= "@")then
-   current_textinput = current_textinput .. text
-  end
-  if(text == "@")then
-    editlevelname = not editlevelname
-    if not editlevelname then
-      levelname = current_textinput
-      current_textinput = ""
+  for i, j in ipairs(menu_buttons) do
+    if j.edit then
+      j.text = j.text .. text
     end
   end
+  if (editlevelname == true) then
+   current_textinput = current_textinput .. text
+  end
+
 end
+
+notification = {
+  sprite = nil,
+  timer = -1,
+  text = "",
+  color = {7, 5},
+  textcolor = {2, 1},
+  func = notimplemented
+}

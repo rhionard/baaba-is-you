@@ -80,7 +80,7 @@ moveunits()
  end
  moveunits()
  if domovesound then
-   love.audio.play(love.audio.newSource("sound/movem.wav","static"))
+   playsfx("movem", true)
  end
 
 end
@@ -114,14 +114,11 @@ function moveunits(_thereturnofevilrecursion)
       if not sleep and not still then
         table.insert(updates, moved[1])
 
-        local nx,ny = unit.tilex,unit.tiley
-            if(dir == "right")then nx = nx+1
-      elseif(dir == "left")then nx = nx-1
-     elseif(dir == "down")then ny = ny+1
-     elseif(dir == "up")then ny = ny-1 end
+        local x,y = unit.tilex,unit.tiley
+        local ox, oy = dir_to_xy(dir)[1], dir_to_xy(dir)[2]
         local weak = ruleexists(unit.id, unit.name,"is","weak")
         local hop = ruleexists(unit.id, unit.name,"is","hop")
-        if(iamstupid(unit,nx,ny,dir))then
+        if(collision(unit,x+ox,y+oy,dir))then
           fullmove(unit, dir)
           for a, b in pairs(mypushedunits) do
             pushedunits[a] = b
@@ -130,7 +127,13 @@ function moveunits(_thereturnofevilrecursion)
           fullmove(unit, dir)
           fullmove(unit, dir)
         elseif moved[3] == "move" then
-          fullmove(unit, revdir(dir))
+
+          if(collision(unit,x-ox,y-oy,revdir(dir)))then
+            fullmove(unit, revdir(dir))
+            for a, b in pairs(mypushedunits) do
+              pushedunits[a] = b
+            end
+          end
         elseif weak then
           handledels({unit})
         end
@@ -141,13 +144,12 @@ function moveunits(_thereturnofevilrecursion)
     if notmoved(pid,pdir) then
       local punit = Objects[pid]
       add_undo("update", {id = punit.undo_id, old_x = punit.tilex, old_y = punit.tiley, dir = punit.dir})
-      punit.from_x = punit.x
-      punit.from_y = punit.y
-      punit.to_x = punit.x+ (dir_to_xy(pdir)[1]) * tilesize
-      punit.to_y = punit.y+ (dir_to_xy(pdir)[2]) * tilesize
+      local old_x, old_y = punit.tilex * tilesize, punit.tiley * tilesize
       punit.tilex = punit.tilex + (dir_to_xy(pdir)[1])
       punit.tiley = punit.tiley+ (dir_to_xy(pdir)[2])
+      table.insert(punit.anim_stack, {{old_x, old_y}, {punit.tilex * tilesize, punit.tiley * tilesize}})
       punit.dir = pdir
+      particle("move", punit.x, punit.y, 1, {rotation = math.pi + dir_to_rotate(pdir), color = punit.color}, true)
     end
   end
   pushedunits = {}
@@ -173,10 +175,10 @@ end
 function update(unitid,x,y)
  local unit = Objects[unitid]
   add_undo("update", {id = unit.undo_id, old_x = unit.tilex, old_y = unit.tiley, dir = unit.dir})
- unit.to_x = x * tilesize
- unit.to_y = y * tilesize
+  local old_x, old_y = unit.tilex * tilesize, unit.tiley * tilesize
  unit.tilex = x
  unit.tiley = y
+ table.insert(unit.anim_stack, {{old_x, old_y}, {unit.tilex * tilesize, unit.tiley * tilesize}})
  unit.moving = true
 end
 
@@ -184,21 +186,20 @@ function fullmove(unit, dir)
 
   add_undo("update", {id = unit.undo_id, old_x = unit.tilex, old_y = unit.tiley, dir = unit.dir})
   domovesound = true
+  local old_x, old_y = unit.tilex * tilesize, unit.tiley * tilesize
   if(dir == "right")then
-    unit.to_x = unit.to_x+tilesize
     unit.tilex = unit.tilex + 1
   elseif(dir == "left")then
-    unit.to_x = unit.to_x-tilesize
     unit.tilex = unit.tilex - 1
   elseif(dir == "down")then
-    unit.to_y = unit.to_y+tilesize
     unit.tiley = unit.tiley + 1
   elseif(dir == "up")then
-    unit.to_y = unit.to_y-tilesize
     unit.tiley = unit.tiley - 1
   end
+ table.insert(unit.anim_stack, {{old_x, old_y}, {unit.tilex * tilesize, unit.tiley * tilesize}})
   unit.dir = dir
   unit.moving = true
+  particle("move", unit.x, unit.y, 1, {rotation = math.pi + dir_to_rotate(dir), color = unit.color}, true)
 
 end
 
@@ -233,7 +234,7 @@ function heavycheck(ida, idb)
   return false
 end
 
-function iamstupid(unit,x,y,dir,pushing)
+function collision(unit,x,y,dir,pushing)
   if x < 1 or y < 1 or x > 1 * (levelx - 2) or y > 1 * (levely - 1) then
     return false
   end
@@ -242,7 +243,7 @@ function iamstupid(unit,x,y,dir,pushing)
     if ruleexists(v.id, v.name,"is","push") then
 
         if not ruleexists(v.id, v.name,"is","still")  and not heavycheck(unit.id, v.id) and not smallcheck(unit.id,v.id)  then
-           if iamstupid(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,true) then
+           if collision(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,true) then
              if pushing then
                mypushedunits[unit.id] = dir
                --[[
@@ -261,26 +262,30 @@ function iamstupid(unit,x,y,dir,pushing)
            fail = true
          end
        elseif ruleexists(v.id, v.name,"is","stop") or (ruleexists(v.id, v.name,"is","oneway") and v.dir ~= dir) or ((ruleexists(v.id, v.name,"is","push") or (ruleexists("text","is","stop") and string.sub(v.name,1,5) == "text_"))and smallcheck(unit.id,v.id) and heavycheck(unit.id,v.id)) then
-          if notmoved(v.id, dir) or not iamstupid(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,false) then
+          if notmoved(v.id, dir) or not collision(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,false) then
              fail = true
           end
        elseif ruleexists(v.id, v.name, "is", "pull") then
-         if pulledunits[v.id] == nil and (notmoved(v.id, dir) or not iamstupid(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,false)) then
+         if pulledunits[v.id] == nil and (notmoved(v.id, dir) or not collision(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,false)) then
            fail = true
          end
        end
 
        if fail then
          if (ruleexists(unit.id, unit.name,"eat",v.name)) then
-           if notmoved(v.id, dir) or not iamstupid(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,false) then
+           if notmoved(v.id, dir) or not collision(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,false) then
+             particle("hot", v.tilex * tilesize, v.tiley * tilesize, love.math.random(3, 5), nil, true)
              handledels({v})
            end
+         elseif mypushedunits[unit.id] == dir and (ruleexists(v.id, v.name,"is","hop")) then
+           return true
          elseif ((ruleexists(v.id, v.name,"is","open") and ruleexists(unit.id, unit.name,"is","shut"))
           or (ruleexists(v.id, v.name,"is","shut") and ruleexists(unit.id, unit.name,"is","open")))
          and not smallcheck(unit.id,v.id) then
 
-           if notmoved(v.id, dir) or not iamstupid(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,false) then
-             handledels({v,unit})
+           if notmoved(v.id, dir) or not collision(v,v.tilex+ (dir_to_xy(dir)[1]),v.tiley+ (dir_to_xy(dir)[2]), dir,false) then
+             particle("open", v.x, v.y, 4, nil, true)
+             handledels({v,unit}, "keys")
              return true
            end
          else
@@ -296,7 +301,7 @@ function iamstupid(unit,x,y,dir,pushing)
        if ruleexists(v.id, v.name,"is","pull") then
           if not ruleexists(v.id, v.name,"is","still") and not smallcheck(unit.id,v.id) and not heavycheck(unit.id, v.id) then
             pulledunits[v.id] = dir
-            if iamstupid(v,x - (dir_to_xy(dir)[1]),y - (dir_to_xy(dir)[2]), dir, true) then
+            if collision(v,x - (dir_to_xy(dir)[1]),y - (dir_to_xy(dir)[2]), dir, true) then
               if pushing then
                 mypushedunits[unit.id] = dir
               end
