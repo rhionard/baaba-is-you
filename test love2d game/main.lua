@@ -890,6 +890,8 @@ function love.update(delta)
   end
   if shake > 0 then
     shake = shake - delta
+  else
+    shake = 0
   end
 
   turntimer = turntimer + delta
